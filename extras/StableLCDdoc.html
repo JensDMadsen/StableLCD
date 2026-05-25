@@ -1,0 +1,1908 @@
+﻿<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StableLCDdoc.md</title>
+  <link rel="stylesheet" href="https://stackedit.io/style.css" />
+</head>
+
+<body class="stackedit">
+  <div class="stackedit__left">
+    <div class="stackedit__toc">
+      
+<ul>
+<li><a href="#stablelcd">StableLCD</a>
+<ul>
+<li><a href="#table-of-contents">Table of Contents</a></li>
+</ul>
+</li>
+<li><a href="#introduction">Introduction</a>
+<ul>
+<li><a href="#basic-example">Basic Example</a></li>
+<li><a href="#verify-example">Verify Example</a></li>
+<li><a href="#recovery-example">Recovery Example</a></li>
+</ul>
+</li>
+<li><a href="#background-and-motivation">Background and Motivation</a></li>
+<li><a href="#design-goals">Design Goals</a>
+<ul>
+<li><a href="#robust-communication">Robust Communication</a></li>
+<li><a href="#display-verification">Display Verification</a></li>
+<li><a href="#recovery-support">Recovery Support</a></li>
+<li><a href="#layered-architecture">Layered Architecture</a></li>
+<li><a href="#consistent-design-principles">Consistent Design Principles</a></li>
+</ul>
+</li>
+<li><a href="#architecture">Architecture</a>
+<ul>
+<li><a href="#hd44780phy">HD44780PHY</a></li>
+<li><a href="#hd44780pin">HD44780PIN</a></li>
+<li><a href="#liquidcrystalbase">LiquidCrystalBase</a></li>
+<li><a href="#stablelcd-1">StableLCD</a></li>
+<li><a href="#alternative-phy-implementations">Alternative PHY Implementations</a></li>
+<li><a href="#why-the-architecture-matters">Why the Architecture Matters</a></li>
+</ul>
+</li>
+<li><a href="#robust-initialization-algorithm">Robust Initialization Algorithm</a>
+<ul>
+<li><a href="#traditional-hd44780-initialization">Traditional HD44780 Initialization</a></li>
+<li><a href="#busy-flag-synchronization">Busy Flag Synchronization</a></li>
+<li><a href="#possible-db7-states">Possible DB7 States</a></li>
+<li><a href="#nibble-synchronization">Nibble Synchronization</a></li>
+<li><a href="#why-repeated-3×0x3-synchronization-is-used">Why Repeated 3×0x3 Synchronization Is Used</a></li>
+<li><a href="#timeout-handling">Timeout Handling</a></li>
+<li><a href="#fast-initialization">Fast Initialization</a></li>
+<li><a href="#why-the-algorithm-matters">Why the Algorithm Matters</a></li>
+</ul>
+</li>
+<li><a href="#class-responsibilities-and-implementation-binding">Class Responsibilities and Implementation Binding</a>
+<ul>
+<li><a href="#hd44780phy-1">HD44780PHY</a></li>
+<li><a href="#liquidcrystalbase-1">LiquidCrystalBase</a></li>
+<li><a href="#stablelcd-2">StableLCD</a></li>
+</ul>
+</li>
+<li><a href="#porting-and-custom-backends">Porting and Custom Backends</a>
+<ul>
+<li><a href="#backend-architecture">Backend Architecture</a></li>
+<li><a href="#implementing-a-custom-backend">Implementing a Custom Backend</a></li>
+<li><a href="#reference-backend-hd44780pin">Reference Backend: HD44780PIN</a></li>
+<li><a href="#fast-busy-polling">Fast Busy Polling</a></li>
+<li><a href="#bit-and-8-bit-interfaces">4-Bit and 8-Bit Interfaces</a></li>
+<li><a href="#runtime-power-control">Runtime Power Control</a></li>
+<li><a href="#wrapper-layer-integration">Wrapper Layer Integration</a></li>
+<li><a href="#why-the-backend-architecture-matters">Why the Backend Architecture Matters</a></li>
+</ul>
+</li>
+<li><a href="#runtime-synchronization-and-recovery">Runtime Synchronization and Recovery</a>
+<ul>
+<li><a href="#synchronization-during-runtime">Synchronization During Runtime</a></li>
+<li><a href="#initclear">initClear()</a></li>
+<li><a href="#recovery-philosophy">Recovery Philosophy</a></li>
+<li><a href="#timeout-handling-1">Timeout Handling</a></li>
+<li><a href="#verification-and-runtime-recovery">Verification and Runtime Recovery</a></li>
+<li><a href="#watchdog-integration">Watchdog Integration</a></li>
+<li><a href="#repeated-synchronization">Repeated Synchronization</a></li>
+<li><a href="#runtime-robustness">Runtime Robustness</a></li>
+</ul>
+</li>
+<li><a href="#performance-considerations">Performance Considerations</a>
+<ul>
+<li><a href="#busy-polling-vs-fixed-delays">Busy Polling vs Fixed Delays</a></li>
+<li><a href="#initialization-performance">Initialization Performance</a></li>
+<li><a href="#runtime-synchronization-cost">Runtime Synchronization Cost</a></li>
+<li><a href="#readdb7-optimization">readDB7() Optimization</a></li>
+<li><a href="#fastio-and-direct-register-access">FastIO and Direct Register Access</a></li>
+<li><a href="#bit-vs-8-bit-interfaces">4-Bit vs 8-Bit Interfaces</a></li>
+<li><a href="#delay-free-runtime-operation">Delay-Free Runtime Operation</a></li>
+<li><a href="#robustness-and-performance">Robustness and Performance</a></li>
+</ul>
+</li>
+<li><a href="#hardware-considerations">Hardware Considerations</a>
+<ul>
+<li><a href="#rw-signal-required">R/W Signal Required</a></li>
+<li><a href="#data-bus-pullups">Data Bus Pullups</a></li>
+<li><a href="#power-and-reset-behavior">Power and Reset Behavior</a></li>
+<li><a href="#signal-integrity">Signal Integrity</a></li>
+<li><a href="#bit-and-8-bit-wiring">4-Bit and 8-Bit Wiring</a></li>
+<li><a href="#lcd-clones-and-compatible-controllers">LCD Clones and Compatible Controllers</a></li>
+<li><a href="#what-hardware-cannot-be-verified">What Hardware Cannot Be Verified</a></li>
+</ul>
+</li>
+<li><a href="#example-usage-patterns">Example Usage Patterns</a>
+<ul>
+<li><a href="#demo1---basic-usage">DEMO1 - Basic Usage</a></li>
+<li><a href="#demo2---verification-example">DEMO2 - Verification Example</a></li>
+<li><a href="#demo3---runtime-recovery-example">DEMO3 - Runtime Recovery Example</a></li>
+<li><a href="#runtime-reinitialization">Runtime Reinitialization</a></li>
+<li><a href="#power-controlled-displays">Power Controlled Displays</a></li>
+<li><a href="#custom-backends">Custom Backends</a></li>
+</ul>
+</li>
+<li><a href="#conclusion">Conclusion</a>
+<ul>
+<li><a href="#contact">Contact</a></li>
+</ul>
+</li>
+</ul>
+
+    </div>
+  </div>
+  <div class="stackedit__right">
+    <div class="stackedit__html">
+      <hr>
+<h1 id="stablelcd">StableLCD</h1>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ul>
+<li><a href="#introduction">Introduction</a></li>
+<li><a href="#background-and-motivation">Background and Motivation</a></li>
+<li><a href="#design-goals">Design Goals</a></li>
+<li><a href="#architecture">Architecture</a></li>
+<li><a href="#robust-initialization-algorithm">Robust Initialization Algorithm</a></li>
+<li><a href="#class-responsibilities-and-implementation-binding">Class Responsibilities and Implementation Binding</a></li>
+<li><a href="#porting-and-custom-backends">Porting and Custom Backends</a></li>
+<li><a href="#runtime-synchronization-and-recovery">Runtime Synchronization and Recovery</a></li>
+<li><a href="#performance-considerations">Performance Considerations</a></li>
+<li><a href="#hardware-considerations">Hardware Considerations</a></li>
+<li><a href="#example-usage-patterns">Example Usage Patterns</a></li>
+<li><a href="#conclusion">Conclusion</a></li>
+</ul>
+<hr>
+<h1 id="introduction">Introduction</h1>
+<p>StableLCD is an Arduino HD44780 LCD library focused on:</p>
+<ul>
+<li>robustness,</li>
+<li>synchronization,</li>
+<li>recovery,</li>
+<li>and verification.</li>
+</ul>
+<p>Traditional HD44780 LCD libraries normally assume that communication with the display always works correctly. In many real embedded systems this is not always true.</p>
+<p>Noise, brownouts, timing problems, cable issues, unexpected resets, or partial controller initialization may leave the LCD controller and software driver out of synchronization.</p>
+<p>StableLCD was designed to detect, handle, and recover from such situations.</p>
+<p>The library includes:</p>
+<ul>
+<li>busy flag synchronization,</li>
+<li>timeout handling,</li>
+<li>display verification,</li>
+<li>communication recovery,</li>
+<li>optional power management,</li>
+<li>and a robust initialization sequence capable of synchronizing with the LCD controller even when startup timing, controller state, or nibble alignment is unknown.</li>
+</ul>
+<p>Unlike traditional LCD libraries that blindly assume writes succeed, StableLCD can verify that expected data actually exists in display memory by reading data back from the LCD controller. <strong>This library requires the RW (Read/Write) pin to be connected</strong>, as it uses the pin for busy flag polling, display verification, and robust synchronization.</p>
+<p>This makes it possible to continuously validate LCD operation during runtime, for example before clearing a watchdog timer in safety-oriented or long-running embedded systems.</p>
+<p>StableLCD is compatible with standard HD44780 character displays and supports both 4-bit and 8-bit interfaces.</p>
+<p>The library is organized in layers:</p>
+<ul>
+<li>
+<p><code>HD44780PHY</code></p>
+<ul>
+<li>Physical transport and protocol layer.</li>
+<li>Handles bus communication, busy polling, synchronization, timeout handling, and optional power control.</li>
+</ul>
+</li>
+<li>
+<p><code>LiquidCrystalBase</code></p>
+<ul>
+<li>LCD logic and Arduino-compatible API layer.</li>
+<li>Implements cursor handling, display state management, verification support, and <code>Print</code> integration.</li>
+</ul>
+</li>
+<li>
+<p><code>HD44780PIN</code></p>
+<ul>
+<li>Arduino GPIO backend implementation.</li>
+<li>Connects the generic PHY layer to Arduino digital I/O.</li>
+</ul>
+</li>
+<li>
+<p><code>StableLCD</code></p>
+<ul>
+<li>User-facing wrapper layer.</li>
+<li>Binds <code>LiquidCrystalBase</code> to the <code>HD44780PIN</code> backend.</li>
+</ul>
+</li>
+</ul>
+<p>The layered architecture allows alternative hardware backends to be implemented without changing the LCD logic layer.</p>
+<p>Possible future backends could include:</p>
+<ul>
+<li>direct GPIO,</li>
+<li>FastIO,</li>
+<li>shift registers,</li>
+<li>I2C expanders,</li>
+<li>SPI interfaces,</li>
+<li>memory mapped buses,</li>
+<li>or runtime selectable PHY drivers.</li>
+</ul>
+<hr>
+<h2 id="basic-example">Basic Example</h2>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">&lt;StableLCD.h&gt;</span></span>
+
+<span class="token keyword">const</span> <span class="token keyword">int</span> rs <span class="token operator">=</span> <span class="token number">6</span><span class="token punctuation">,</span> rw <span class="token operator">=</span> <span class="token number">7</span><span class="token punctuation">,</span> en <span class="token operator">=</span> <span class="token number">8</span><span class="token punctuation">;</span>
+<span class="token keyword">const</span> <span class="token keyword">int</span> d4 <span class="token operator">=</span> <span class="token number">9</span><span class="token punctuation">,</span> d5 <span class="token operator">=</span> <span class="token number">10</span><span class="token punctuation">,</span> d6 <span class="token operator">=</span> <span class="token number">11</span><span class="token punctuation">,</span> d7 <span class="token operator">=</span> <span class="token number">12</span><span class="token punctuation">;</span>
+
+StableLCD <span class="token function">lcd</span><span class="token punctuation">(</span>rs<span class="token punctuation">,</span> rw<span class="token punctuation">,</span> en<span class="token punctuation">,</span> d4<span class="token punctuation">,</span> d5<span class="token punctuation">,</span> d6<span class="token punctuation">,</span> d7<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">void</span> <span class="token function">setup</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  lcd<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">16</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"StableLCD"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> <span class="token function">loop</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<hr>
+<h2 id="verify-example">Verify Example</h2>
+<p>StableLCD can verify display contents by reading data back from the LCD controller instead of writing new data.</p>
+<pre class=" language-cpp"><code class="prism  language-cpp">lcd<span class="token punctuation">.</span><span class="token function">home</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+lcd<span class="token punctuation">.</span><span class="token function">verifyBegin</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"StableLCD"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+lcd<span class="token punctuation">.</span><span class="token function">verifyEnd</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+lcd<span class="token punctuation">.</span><span class="token function">setCursor</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">if</span> <span class="token punctuation">(</span>lcd<span class="token punctuation">.</span><span class="token function">verifyOk</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"Verify ok"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+  lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"Verify error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p>In verify mode, normal write operations are transparently replaced by LCD read-and-compare operations.</p>
+<p>This allows existing <code>Print</code>-based code to be reused for display verification without introducing separate verify-specific APIs.</p>
+<hr>
+<h2 id="recovery-example">Recovery Example</h2>
+<p>StableLCD supports communication recovery by reinitializing the LCD controller and restoring the software display state.</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>lcd<span class="token punctuation">.</span><span class="token function">verifyOk</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  lcd<span class="token punctuation">.</span><span class="token function">initClear</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"StableLCD"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p>For more severe communication failures, a full power-cycle recovery strategy may also be used:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp">lcd<span class="token punctuation">.</span><span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">100</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+lcd<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">16</span><span class="token punctuation">,</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre>
+<p>StableLCD has currently been tested primarily on AVR architecture using Arduino Nano boards, but the architecture is intended to remain portable across platforms supporting Arduino-compatible GPIO and timing functions.</p>
+<hr>
+<h1 id="background-and-motivation">Background and Motivation</h1>
+<p>The HD44780 controller was introduced in 1984 - over 40 years ago. For four decades, engineers have copied the same initialization code from datasheets, accepting fixed delays and startup assumptions as “just how it’s done”.</p>
+<p>This library started as a simple observation: Why wait 50ms when the display might be ready in 2ms? Why assume the controller is in 8-bit mode when it might not be?</p>
+<p>The synchronization algorithm in this library is, to my knowledge, the first published method that can reliably synchronize with an HD44780 display from <em>any</em> unknown state - without a single fixed delay. No assumptions about power-up timing, no assumptions about mode, no assumptions about nibble alignment.</p>
+<p>The name “StableLCD” reflects the goal: a display driver that doesn’t just work most of the time, but works <em>reliably</em> - even when things go wrong. Runtime verification, automatic recovery, and active synchronization aren’t just features; they’re the foundation.</p>
+<p>I hope this library saves you hours of debugging flaky displays, and perhaps inspires a more robust approach to embedded communication in general.</p>
+<hr>
+<h1 id="design-goals">Design Goals</h1>
+<p>StableLCD was designed with focus on:</p>
+<ul>
+<li>robustness,</li>
+<li>consistency,</li>
+<li>recovery,</li>
+<li>verification,</li>
+<li>and layered driver architecture.</li>
+</ul>
+<p>The goal of the library is not only to write text to an LCD display, but also to provide mechanisms for:</p>
+<ul>
+<li>detecting communication problems,</li>
+<li>recovering synchronization,</li>
+<li>and verifying that the display actually contains the expected data.</li>
+</ul>
+<hr>
+<h2 id="robust-communication">Robust Communication</h2>
+<p>Many HD44780 LCD libraries assume that communication always works correctly after initialization.</p>
+<p>In practice this is not always true.</p>
+<p>Electrical noise, unstable power, timing problems, unexpected resets, or software crashes may leave the LCD controller and software driver out of synchronization.</p>
+<p>StableLCD therefore attempts to:</p>
+<ul>
+<li>detect communication failures,</li>
+<li>avoid infinite blocking,</li>
+<li>recover synchronization,</li>
+<li>and verify display correctness during runtime.</li>
+</ul>
+<p>Timeout handling is integrated into the communication layer to prevent software from hanging indefinitely if the LCD controller stops responding.</p>
+<hr>
+<h2 id="display-verification">Display Verification</h2>
+<p>Traditional LCD libraries normally assume that LCD writes succeed.</p>
+<p>StableLCD instead supports verification by reading display memory back from the LCD controller and comparing it against the expected data.</p>
+<p>This allows software to detect situations where:</p>
+<ul>
+<li>characters were not written correctly,</li>
+<li>the controller lost synchronization,</li>
+<li>or display contents no longer match the expected state.</li>
+</ul>
+<p>Verification may be useful in:</p>
+<ul>
+<li>long-running embedded systems,</li>
+<li>watchdog supervised systems,</li>
+<li>industrial control,</li>
+<li>monitoring systems,</li>
+<li>or applications where display correctness matters.</li>
+</ul>
+<p>Example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp">lcd<span class="token punctuation">.</span><span class="token function">home</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+lcd<span class="token punctuation">.</span><span class="token function">verifyBegin</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"StableLCD"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+lcd<span class="token punctuation">.</span><span class="token function">verifyEnd</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>lcd<span class="token punctuation">.</span><span class="token function">verifyOk</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  <span class="token comment">// Recovery action</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p>Verification mode intentionally reuses the normal <code>Print</code> write path.</p>
+<p>Instead of introducing separate verification APIs, normal write operations are transparently converted into LCD read-and-compare operations.</p>
+<p>This follows the same “do equal things equally” philosophy used throughout StableLCD, where verification intentionally reuses the same transfer paths as normal runtime communication.</p>
+<hr>
+<h2 id="recovery-support">Recovery Support</h2>
+<p>StableLCD includes support for recovering communication with the LCD controller.</p>
+<p>The library distinguishes between:</p>
+<ul>
+<li>normal display clearing (<code>clear()</code>),</li>
+<li>controller reinitialization (<code>initClear()</code>),</li>
+<li>and full power-cycle recovery (<code>end()</code> / <code>begin()</code>).</li>
+</ul>
+<p>This allows recovery strategies to be adapted to the severity of communication failures.</p>
+<p>Example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>lcd<span class="token punctuation">.</span><span class="token function">verifyOk</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  lcd<span class="token punctuation">.</span><span class="token function">initClear</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p>For more severe failures:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp">lcd<span class="token punctuation">.</span><span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">100</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+lcd<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">16</span><span class="token punctuation">,</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre>
+<hr>
+<h2 id="layered-architecture">Layered Architecture</h2>
+<p>StableLCD is intentionally organized in layers.</p>
+<p>The purpose of the layered architecture is to separate:</p>
+<ul>
+<li>physical hardware access,</li>
+<li>HD44780 protocol handling,</li>
+<li>LCD logic,</li>
+<li>and user-facing API functionality.</li>
+</ul>
+<p>This separation improves:</p>
+<ul>
+<li>portability,</li>
+<li>maintainability,</li>
+<li>testing,</li>
+<li>reuse,</li>
+<li>and robustness.</li>
+</ul>
+<p>The architecture currently consists of four logical layers:</p>
+
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>HD44780PHY</code></td>
+<td>Physical bus/protocol communication</td>
+</tr>
+<tr>
+<td><code>HD44780PIN</code></td>
+<td>Arduino GPIO backend</td>
+</tr>
+<tr>
+<td><code>LiquidCrystalBase</code></td>
+<td>LCD logic and API</td>
+</tr>
+<tr>
+<td><code>StableLCD</code></td>
+<td>User-facing wrapper/binding layer</td>
+</tr>
+</tbody>
+</table><p>The layered design also allows future PHY implementations to be added without changing the LCD logic layer.</p>
+<hr>
+<h2 id="consistent-design-principles">Consistent Design Principles</h2>
+<p>StableLCD was developed around a simple design principle:</p>
+<p><em><strong>Do equal things equally.</strong></em></p>
+<p>Instead of implementing separate mechanisms for:</p>
+<ul>
+<li>writing,</li>
+<li>verification,</li>
+<li>custom characters,</li>
+<li>and recovery,</li>
+</ul>
+<p>StableLCD attempts to reuse the same code paths whenever possible.</p>
+<p>Examples include:</p>
+<ul>
+<li>verification using the normal <code>Print</code> write path,</li>
+<li>custom character verification using normal data transfers,</li>
+<li>and recovery using the same synchronization mechanisms as initialization.</li>
+</ul>
+<p>The goal is to improve consistency, reduce hidden corner cases, and simplify long-term maintenance.</p>
+<hr>
+<h1 id="architecture">Architecture</h1>
+<p>StableLCD uses a layered driver architecture similar to designs commonly used in larger embedded systems.</p>
+<p>The purpose of the layered design is to separate:</p>
+<ul>
+<li>physical hardware access,</li>
+<li>HD44780 transport and protocol handling,</li>
+<li>LCD logic,</li>
+<li>and user-facing API functionality.</li>
+</ul>
+<p>This separation improves:</p>
+<ul>
+<li>robustness,</li>
+<li>portability,</li>
+<li>maintainability,</li>
+<li>reuse,</li>
+<li>testing,</li>
+<li>and long-term flexibility.</li>
+</ul>
+<p>Simple LCD drivers may sometimes be implemented as a single class.</p>
+<p>For more advanced or robust drivers, however, explicit separation between hardware access and LCD logic often makes the code easier to maintain and extend.</p>
+<p>The StableLCD architecture is divided into four logical layers:</p>
+
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>HD44780PHY</code></td>
+<td>Physical transport and protocol layer</td>
+</tr>
+<tr>
+<td><code>HD44780PIN</code></td>
+<td>Arduino GPIO backend</td>
+</tr>
+<tr>
+<td><code>LiquidCrystalBase</code></td>
+<td>LCD logic and Arduino-compatible API</td>
+</tr>
+<tr>
+<td><code>StableLCD</code></td>
+<td>Wrapper and layer binding</td>
+</tr>
+</tbody>
+</table><hr>
+<h2 id="hd44780phy">HD44780PHY</h2>
+<p><code>HD44780PHY</code> implements the low-level communication layer used to access the HD44780 controller.</p>
+<p>Responsibilities include:</p>
+<ul>
+<li>raw bus transfers,</li>
+<li>4-bit and 8-bit communication,</li>
+<li>bus direction handling,</li>
+<li>busy flag polling,</li>
+<li>timeout handling,</li>
+<li>controller synchronization,</li>
+<li>initialization,</li>
+<li>enable/disable state handling,</li>
+<li>and optional display power control.</li>
+</ul>
+<p>The PHY layer intentionally contains no LCD user logic.</p>
+<p>Its purpose is only to provide reliable communication with the HD44780 controller.</p>
+<p>This layer is responsible for the robust initialization and synchronization algorithm used by StableLCD.</p>
+<p>Instead of relying entirely on fixed startup delays, the PHY layer attempts to actively synchronize with the controller state using busy polling and nibble-phase detection.</p>
+<hr>
+<h2 id="hd44780pin">HD44780PIN</h2>
+<p><code>HD44780PIN</code> is the default Arduino GPIO backend implementation.</p>
+<p>This layer connects the generic synchronization-aware PHY layer to Arduino GPIO operations.</p>
+<p>It implements the hardware interface required by <code>HD44780PHY</code> using:</p>
+<ul>
+<li><code>digitalWrite()</code>,</li>
+<li><code>digitalRead()</code>,</li>
+<li>and <code>pinMode()</code>.</li>
+</ul>
+<p>Responsibilities include:</p>
+<ul>
+<li>RS control,</li>
+<li>RW control,</li>
+<li>Enable control,</li>
+<li>bus direction switching,</li>
+<li>and physical data bus access.</li>
+</ul>
+<p>The current implementation has primarily been tested on AVR architecture using Arduino Nano boards.</p>
+<hr>
+<h2 id="liquidcrystalbase">LiquidCrystalBase</h2>
+<p><code>LiquidCrystalBase</code> implements the LCD logic layer and Arduino-compatible API.</p>
+<p>Responsibilities include:</p>
+<ul>
+<li>cursor positioning,</li>
+<li>display control,</li>
+<li>text direction handling,</li>
+<li>scrolling,</li>
+<li>custom character handling,</li>
+<li>display state tracking,</li>
+<li>verification support,</li>
+<li>recovery support,</li>
+<li>and <code>Print</code> integration.</li>
+</ul>
+<p>This layer contains no direct hardware access.</p>
+<p>All communication with the LCD controller occurs through abstract virtual functions.</p>
+<p><code>LiquidCrystalBase</code> tracks the internal LCD state in software and can restore this state during recovery operations using <code>initClear()</code>.</p>
+<p>The verification system is also implemented in this layer.</p>
+<p>Verification mode reuses the normal <code>Print</code> write path and transparently replaces write operations with LCD read-and-compare operations.</p>
+<hr>
+<h2 id="stablelcd-1">StableLCD</h2>
+<p><code>StableLCD</code> is the user-facing wrapper implementation.</p>
+<p>It combines:</p>
+<ul>
+<li><code>LiquidCrystalBase</code></li>
+<li>and the <code>HD44780PIN</code> backend</li>
+</ul>
+<p>into a simple single-class interface.</p>
+<p>The internal structure is:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">class</span> <span class="token class-name">StableLCD</span> <span class="token operator">:</span> <span class="token keyword">public</span> LiquidCrystalBase <span class="token punctuation">{</span>
+<span class="token keyword">private</span><span class="token operator">:</span>
+  HD44780PIN lcd<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+</code></pre>
+<p>This allows:</p>
+<ul>
+<li>clean architectural separation internally,</li>
+<li>while still presenting a simple single-class API to the application.</li>
+</ul>
+<hr>
+<h2 id="alternative-phy-implementations">Alternative PHY Implementations</h2>
+<p>The layered architecture allows alternative PHY implementations to be added without changing the LCD logic layer.</p>
+<p>Possible future PHY implementations could include:</p>
+<ul>
+<li>shift register interfaces,</li>
+<li>I2C expanders,</li>
+<li>SPI interfaces,</li>
+<li>memory mapped buses,</li>
+<li>FastIO backends,</li>
+<li>direct port access implementations,</li>
+<li>or runtime selectable PHY drivers.</li>
+</ul>
+<p>Because the LCD logic layer is separated from the transport layer, robustness features such as:</p>
+<ul>
+<li>verification,</li>
+<li>recovery,</li>
+<li>timeout handling,</li>
+<li>and state restoration</li>
+</ul>
+<p>may be reused across different hardware implementations.</p>
+<hr>
+<h2 id="why-the-architecture-matters">Why the Architecture Matters</h2>
+<p>The layered architecture is an important part of the StableLCD design philosophy.</p>
+<p>By separating:</p>
+<ul>
+<li>hardware access,</li>
+<li>transport logic,</li>
+<li>LCD behavior,</li>
+<li>and user API functionality</li>
+</ul>
+<p>into independent layers, the library attempts to reduce hidden dependencies and special-case behavior.</p>
+<p>This also allows the same synchronization, verification, and recovery mechanisms to be reused consistently throughout the library.</p>
+<hr>
+<h1 id="robust-initialization-algorithm">Robust Initialization Algorithm</h1>
+<p>One of the primary design goals of StableLCD is reliable synchronization with the HD44780 controller.</p>
+<p>Traditional HD44780 initialization sequences commonly used in existing LCD libraries are largely based directly on the controller datasheet.</p>
+<p>These sequences normally assume:</p>
+<ul>
+<li>startup timing compatible with the datasheet,</li>
+<li>sufficiently long initialization delays,</li>
+<li>and successful synchronization after the initialization sequence has been transmitted.</li>
+</ul>
+<p>In practice this is not always guaranteed.</p>
+<p>Unexpected resets, brownouts, software crashes, noise, or power instability may leave the LCD controller and software driver out of synchronization.</p>
+<p>In such situations initialization may fail because the software no longer knows:</p>
+<ul>
+<li>whether the controller is currently busy,</li>
+<li>whether the controller is operating in 4-bit or 8-bit mode,</li>
+<li>or whether the next transfer is expected to be a high nibble or low nibble.</li>
+</ul>
+<p>StableLCD therefore uses a synchronization-oriented initialization algorithm instead of relying entirely on fixed startup delays.</p>
+<hr>
+<h2 id="traditional-hd44780-initialization">Traditional HD44780 Initialization</h2>
+<p>The classical HD44780 initialization sequence transmits the <code>0x3</code> synchronization command three times in order to force the controller toward 8-bit operation before optionally switching to 4-bit mode.</p>
+<p>This method is significantly more robust than relying only on power-on-reset defaults, because it attempts to synchronize with the controller regardless of its previous communication state.</p>
+<p>However, the traditional sequence still depends heavily on fixed timing delays.</p>
+<p>These delays must be long enough to handle:</p>
+<ul>
+<li>slow LCD startup,</li>
+<li>long reset conditions,</li>
+<li>unstable power rise times,</li>
+<li>and worst-case controller timing.</li>
+</ul>
+<p>Many implementations therefore use conservative fixed delays to improve reliability.</p>
+<p>While this approach often works well, it also has limitations:</p>
+<ul>
+<li>initialization always consumes a fixed amount of time,</li>
+<li>delays may still be too short in some situations,</li>
+<li>the synchronization attempt is normally only performed once,</li>
+<li>and the algorithm does not actively continue recovery if synchronization fails.</li>
+</ul>
+<p>StableLCD uses the same classical synchronization mechanism.</p>
+<p>However, instead of performing the sequence only once with fixed delays, the complete 3×<code>0x3</code> synchronization sequence is repeated as long as unstable busy-flag behavior is observed.</p>
+<p>This allows synchronization recovery to continue until stable operation is reached.</p>
+<hr>
+<h2 id="busy-flag-synchronization">Busy Flag Synchronization</h2>
+<p>An HD44780 operation is not complete until the busy flag (<code>DB7</code>) becomes zero.</p>
+<p>The busy flag therefore acts as the controller’s synchronization signal.</p>
+<p>While busy is active, the controller may still be processing a previous command and communication timing may not yet be stable.</p>
+<p>To read the busy flag, the LCD data bus must first be configured for read mode.</p>
+<p>StableLCD configures the MCU data pins as <code>INPUT_PULLUP</code> while reading from the LCD.</p>
+<p>This is important because during the LCD controller’s internal power-on reset period the LCD data bus may be in a high impedance state (<code>HI-Z</code>).</p>
+<p>With pullups enabled:</p>
+<ul>
+<li>an inactive or floating LCD bus reads as logic high,</li>
+<li>and the busy flag therefore appears active.</li>
+</ul>
+<p>This causes the initialization algorithm to continue waiting until the controller actively drives the bus and synchronization becomes possible.</p>
+<p>Without pullups, a floating bus could produce random values and falsely indicate that the controller is ready.</p>
+<hr>
+<h2 id="possible-db7-states">Possible DB7 States</h2>
+<p>During synchronization the algorithm repeatedly samples <code>DB7</code>.</p>
+<p>The following situations are possible:</p>
+
+<table>
+<thead>
+<tr>
+<th>DB7 Samples</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1,1</code></td>
+<td>Busy is certainly active, phase unknown</td>
+</tr>
+<tr>
+<td><code>1,0</code></td>
+<td>Busy/phase unknown</td>
+</tr>
+<tr>
+<td><code>0,1</code></td>
+<td>Busy/phase unknown</td>
+</tr>
+<tr>
+<td><code>0,0</code></td>
+<td>Busy is certainly inactive, phase still unknown</td>
+</tr>
+</tbody>
+</table><p>The important observation is that only <code>0,0</code> guarantees that the controller is no longer busy.</p>
+<p>However, even in the <code>0,0</code> case, nibble phase may still be unknown.</p>
+<hr>
+<h2 id="nibble-synchronization">Nibble Synchronization</h2>
+<p>In 4-bit mode, each byte transfer consists of:</p>
+<ol>
+<li>high nibble,</li>
+<li>followed by low nibble.</li>
+</ol>
+<p>If synchronization is lost, the software and controller may disagree about which nibble is currently being transferred.</p>
+<p>This creates a nibble-phase mismatch where:</p>
+<ul>
+<li>a low nibble may be interpreted as a high nibble,</li>
+<li>or a high nibble may be interpreted as a low nibble.</li>
+</ul>
+<p>The initialization algorithm therefore waits until the first observed <code>DB7=0</code> condition before immediately sampling <code>DB7</code> again.</p>
+<p>This leaves two practically relevant situations:</p>
+
+<table>
+<thead>
+<tr>
+<th>Samples</th>
+<th>Meaning</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0,0</code></td>
+<td>Controller is not busy. Phase may still be unknown.</td>
+<td>Send repeated 3×<code>0x3</code> synchronization sequence.</td>
+</tr>
+<tr>
+<td><code>0,1</code></td>
+<td>Busy/phase uncertain.</td>
+<td>Send repeated 3×<code>0x3</code> synchronization sequence and continue synchronization loop.</td>
+</tr>
+</tbody>
+</table><p>The repeated 3×<code>0x3</code> synchronization sequence forces the controller toward 8-bit mode regardless of previous nibble alignment.</p>
+<p>Once stable 8-bit operation is reached, busy polling eventually stabilizes as either:</p>
+<ul>
+<li><code>1,1</code> while busy,</li>
+<li>or <code>0,0</code> when no longer busy.</li>
+</ul>
+<p>The synchronization loop therefore continues until stable <code>0,0</code> is reached.</p>
+<hr>
+<h2 id="why-repeated-3×0x3-synchronization-is-used">Why Repeated 3×0x3 Synchronization Is Used</h2>
+<p>The repeated 3×<code>0x3</code> synchronization sequence is inherited from the traditional HD44780 initialization procedure.</p>
+<p>Its purpose is to repeatedly force the controller toward a known 8-bit command state regardless of previous synchronization loss.</p>
+<p>Repeated synchronization writes are important because:</p>
+<ul>
+<li>the controller may currently expect either a high nibble or low nibble,</li>
+<li>previous commands may have been incomplete,</li>
+<li>or communication may have stopped mid-transfer.</li>
+</ul>
+<p>By repeatedly transmitting the 3×<code>0x3</code> synchronization sequence, the software eventually forces the controller back into a predictable command interpretation state.</p>
+<p>StableLCD combines this classical synchronization technique with active busy polling.</p>
+<hr>
+<h2 id="timeout-handling">Timeout Handling</h2>
+<p>The initialization algorithm includes timeout protection.</p>
+<p>Synchronization relies on active busy-flag polling, while timeout handling provides protection against permanent synchronization failure.</p>
+<p>Under normal operation the timeout mechanism should never trigger unless a physical communication problem occurs, such as:</p>
+<ul>
+<li>disconnected hardware,</li>
+<li>damaged communication lines,</li>
+<li>missing LCD power,</li>
+<li>permanent controller reset,</li>
+<li>or a defective controller that never leaves the busy state.</li>
+</ul>
+<p>If synchronization cannot be achieved within the configured timeout period, initialization fails instead of blocking indefinitely.</p>
+<p>This prevents software lockups in situations where communication with the controller is no longer possible.</p>
+<hr>
+<h2 id="fast-initialization">Fast Initialization</h2>
+<p>Traditional HD44780 initialization sequences are delay based.</p>
+<p>The actual HD44780 instructions normally complete much faster than the conservative startup delays often used by libraries.</p>
+<p>For example, many commands complete within a few milliseconds, but after power-up the display module may not be ready to communicate immediately.</p>
+<p>Some implementations therefore use startup delays such as <code>50 ms</code> to improve compatibility.</p>
+<p>This improves reliability, but it also makes every initialization slow even when the display is ready much earlier.</p>
+<p>The StableLCD initialization algorithm contains no fixed delay-based waiting loops apart from the very small bus timing delays required by the HD44780 hardware interface itself.</p>
+<p>Synchronization instead relies on active busy-flag polling.</p>
+<p>When combined with a FastIO backend, initialization and synchronization may therefore execute extremely quickly.</p>
+<p>Fast initialization is also important because StableLCD supports repeated runtime reinitialization through <code>initClear()</code>.</p>
+<p>Unlike a traditional clear operation, <code>initClear()</code> performs:</p>
+<ul>
+<li>controller synchronization,</li>
+<li>initialization,</li>
+<li>state restoration,</li>
+<li>and display clear.</li>
+</ul>
+<p>This allows applications to periodically reestablish synchronization with the LCD controller during normal runtime operation.</p>
+<p>Because the initialization algorithm actively polls the controller instead of relying on large fixed delays, repeated synchronization may be performed without introducing excessive delays into the application.</p>
+<p>The algorithm therefore attempts to provide both:</p>
+<ul>
+<li>improved robustness,</li>
+<li>and improved startup performance.</li>
+</ul>
+<hr>
+<h2 id="why-the-algorithm-matters">Why the Algorithm Matters</h2>
+<p>The purpose of the StableLCD initialization algorithm is not only fast startup.</p>
+<p>Its primary purpose is reliable synchronization with an LCD controller operating in an unknown or partially synchronized state.</p>
+<p>This allows StableLCD to support:</p>
+<ul>
+<li>communication recovery,</li>
+<li>runtime reinitialization,</li>
+<li>watchdog-oriented verification strategies,</li>
+<li>and more robust long-running embedded applications.</li>
+</ul>
+<p>The same synchronization mechanisms are reused consistently throughout the library.</p>
+<hr>
+<h1 id="class-responsibilities-and-implementation-binding">Class Responsibilities and Implementation Binding</h1>
+<p>StableLCD is built as a layered driver architecture where each class has a clearly defined responsibility.</p>
+<p>The architecture separates:</p>
+<ul>
+<li>hardware communication,</li>
+<li>synchronization logic,</li>
+<li>display functionality,</li>
+<li>and application API handling</li>
+</ul>
+<p>into independent layers.</p>
+<p>This section describes:</p>
+<ul>
+<li>the purpose of each class,</li>
+<li>which virtual functions must be implemented,</li>
+<li>which functionality each class provides,</li>
+<li>and how the layers are connected together.</li>
+</ul>
+<hr>
+<h2 id="hd44780phy-1">HD44780PHY</h2>
+<p><code>HD44780PHY</code> is the low-level physical communication layer.</p>
+<p>This class implements:</p>
+<ul>
+<li>HD44780 bus protocol handling,</li>
+<li>busy flag polling,</li>
+<li>synchronization,</li>
+<li>timeout handling,</li>
+<li>initialization logic,</li>
+<li>command/data transfers,</li>
+<li>and optional power control integration.</li>
+</ul>
+<p>The PHY layer contains most of the synchronization intelligence used by StableLCD.</p>
+<p>It does not know:</p>
+<ul>
+<li>display geometry,</li>
+<li>cursor positions,</li>
+<li>text formatting,</li>
+<li>verification policy,</li>
+<li>or application logic.</li>
+</ul>
+<p>Its only responsibility is reliable communication with the HD44780 controller.</p>
+<hr>
+<h3 id="hd44780phy-required-virtual-functions">HD44780PHY Required Virtual Functions</h3>
+<p>The PHY layer communicates with hardware through a small abstract hardware interface.</p>
+<p>The following functions must be implemented by the backend:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">initPins</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>            <span class="token comment">// Initialize physical LCD pins.</span>
+<span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">is4bitMode</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>          <span class="token comment">// Return true for 4-bit interface, false for 8-bit.</span>
+
+<span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">setEN</span><span class="token punctuation">(</span><span class="token keyword">bool</span> high<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>      <span class="token comment">// Control LCD Enable signal.</span>
+<span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">setRW</span><span class="token punctuation">(</span><span class="token keyword">bool</span> high<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>      <span class="token comment">// Control LCD Read/Write signal.</span>
+<span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">setRS</span><span class="token punctuation">(</span><span class="token keyword">bool</span> high<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>      <span class="token comment">// Control LCD Register Select signal.</span>
+
+<span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">writeState</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>          <span class="token comment">// Set data bus direction to write mode.</span>
+<span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">readState</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>           <span class="token comment">// Set data bus direction to read mode.</span>
+
+<span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">writeBus</span><span class="token punctuation">(</span>uint8_t val<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> <span class="token comment">// Write value to LCD data bus.</span>
+<span class="token keyword">virtual</span> uint8_t <span class="token function">readBus</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>          <span class="token comment">// Read current value from LCD data bus.</span>
+</code></pre>
+<p>These functions provide:</p>
+<ul>
+<li>GPIO control,</li>
+<li>bus direction handling,</li>
+<li>and data transfer access.</li>
+</ul>
+<p>The synchronization and protocol logic itself is implemented entirely inside <code>HD44780PHY</code>.</p>
+<hr>
+<h3 id="optional-phy-functions">Optional PHY Functions</h3>
+<p>Several PHY functions provide default implementations but may optionally be overridden for optimization or hardware-specific behavior.</p>
+<p>Example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">readDB7</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  <span class="token keyword">return</span> <span class="token punctuation">(</span><span class="token function">readBus</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">&amp;</span> <span class="token number">0x80</span><span class="token punctuation">)</span> <span class="token operator">!=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p>The default implementation reads <code>DB7</code> through <code>readBus()</code>.</p>
+<p>However, backends may override this function for faster direct busy polling.</p>
+<p>Optional display power control may also be implemented:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">power</span><span class="token punctuation">(</span><span class="token keyword">bool</span> on<span class="token punctuation">)</span> <span class="token punctuation">{</span> <span class="token punctuation">}</span>
+</code></pre>
+<p>This hook is automatically called by:</p>
+<ul>
+<li><code>enable()</code></li>
+<li>and <code>disable()</code></li>
+</ul>
+<p>allowing optional LCD power switching to integrate directly into the communication layer.</p>
+<hr>
+<h3 id="hd44780phy-provided-functions">HD44780PHY Provided Functions</h3>
+<p>After the hardware interface has been implemented, <code>HD44780PHY</code> provides:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">bool</span> <span class="token function">enable</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                          <span class="token comment">// Enable LCD communication and optional display power.</span>
+<span class="token keyword">void</span> <span class="token function">disable</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                         <span class="token comment">// Disable LCD communication and optional display power.</span>
+
+<span class="token keyword">bool</span> <span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                            <span class="token comment">// Synchronize and initialize LCD controller.</span>
+
+<span class="token keyword">bool</span> <span class="token function">command</span><span class="token punctuation">(</span>uint8_t value<span class="token punctuation">)</span><span class="token punctuation">;</span>            <span class="token comment">// Send command byte to LCD controller.</span>
+<span class="token keyword">bool</span> <span class="token function">writeData</span><span class="token punctuation">(</span>uint8_t value<span class="token punctuation">)</span><span class="token punctuation">;</span>          <span class="token comment">// Write data byte to DDRAM or CGRAM.</span>
+
+uint8_t <span class="token function">readData</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                     <span class="token comment">// Read data byte from DDRAM or CGRAM.</span>
+
+<span class="token keyword">bool</span> <span class="token function">waitBusy</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                        <span class="token comment">// Wait until busy flag clears.</span>
+<span class="token keyword">bool</span> <span class="token function">readBusy</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                        <span class="token comment">// Read current busy flag state.</span>
+
+uint8_t <span class="token function">readStatus</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                   <span class="token comment">// Read current controller status byte.</span>
+uint8_t <span class="token function">readAC</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                       <span class="token comment">// Wait for ready state and read address counter.</span>
+</code></pre>
+<p>These functions provide:</p>
+<ul>
+<li>synchronization,</li>
+<li>initialization,</li>
+<li>command handling,</li>
+<li>busy polling,</li>
+<li>timeout protection,</li>
+<li>and low-level controller communication.</li>
+</ul>
+<p><code>readBusy()</code> provides an optimized busy-flag read operation.</p>
+<p>Unlike <code>readStatus()</code>, which reads the complete HD44780 status byte, <code>readBusy()</code> may internally use the optional <code>readDB7()</code> optimization hook.</p>
+<p>This allows hardware backends to implement very fast busy polling by reading only the <code>DB7</code> signal directly instead of performing a complete bus read.</p>
+<p><code>readStatus()</code> reads the current controller status directly without waiting for the busy flag to clear.</p>
+<p><code>readAC()</code> waits until the controller becomes ready and then reads the current address counter value.</p>
+<hr>
+<h2 id="liquidcrystalbase-1">LiquidCrystalBase</h2>
+<p><code>LiquidCrystalBase</code> implements the high-level LCD API.</p>
+<p>It provides:</p>
+<ul>
+<li>Arduino <code>Print</code> compatibility,</li>
+<li>text output,</li>
+<li>cursor handling,</li>
+<li>display state management,</li>
+<li>verification support,</li>
+<li>recovery support,</li>
+<li>and compatibility with traditional <code>LiquidCrystal</code> style APIs.</li>
+</ul>
+<p>This layer contains the user-facing LCD functionality.</p>
+<p>Unlike the PHY layer, it does not directly manipulate GPIO pins or hardware timing.</p>
+<p>Instead, all controller communication occurs through abstract virtual functions.</p>
+<hr>
+<h3 id="liquidcrystalbase-required-virtual-functions">LiquidCrystalBase Required Virtual Functions</h3>
+<p>The following functions must be implemented:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">command</span><span class="token punctuation">(</span>uint8_t value<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>      <span class="token comment">// Send command byte to LCD controller.</span>
+<span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">writeData</span><span class="token punctuation">(</span>uint8_t value<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>    <span class="token comment">// Write data byte to DDRAM or CGRAM.</span>
+
+<span class="token keyword">virtual</span> uint8_t <span class="token function">readData</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>               <span class="token comment">// Read data byte from DDRAM or CGRAM.</span>
+
+<span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">enableLCD</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>                 <span class="token comment">// Enable LCD display and optional power control.</span>
+<span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">disableLCD</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>                <span class="token comment">// Disable LCD display and optional power control.</span>
+
+<span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">initLCD</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>                   <span class="token comment">// Synchronize and initialize LCD controller.</span>
+</code></pre>
+<p>These functions bind the high-level LCD API to the lower-level PHY communication layer.</p>
+<hr>
+<h3 id="liquidcrystalbase-provided-functions">LiquidCrystalBase Provided Functions</h3>
+<p>Once the communication layer has been connected, <code>LiquidCrystalBase</code> provides the complete LCD API.</p>
+<h4 id="initialization">Initialization</h4>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">bool</span> <span class="token function">begin</span><span class="token punctuation">(</span>uint8_t cols<span class="token punctuation">,</span> uint8_t rows<span class="token punctuation">,</span>
+           uint8_t charsize <span class="token operator">=</span> LCD_5x8DOTS<span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">// Configure, initialize and clear display.</span>
+
+<span class="token keyword">void</span> <span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                  <span class="token comment">// Stop display and optional power control.</span>
+</code></pre>
+<h4 id="display-control">Display Control</h4>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">bool</span> <span class="token function">noDisplay</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                            <span class="token comment">// Turn display off without clearing memory.</span>
+<span class="token keyword">bool</span> <span class="token function">display</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                              <span class="token comment">// Turn display on.</span>
+
+<span class="token keyword">bool</span> <span class="token function">noBlink</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                              <span class="token comment">// Disable blinking cursor block.</span>
+<span class="token keyword">bool</span> <span class="token function">blink</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                <span class="token comment">// Enable blinking cursor block.</span>
+
+<span class="token keyword">bool</span> <span class="token function">noCursor</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                             <span class="token comment">// Hide cursor underline.</span>
+<span class="token keyword">bool</span> <span class="token function">cursor</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                               <span class="token comment">// Show cursor underline.</span>
+</code></pre>
+<h4 id="text-direction-and-scrolling">Text Direction and Scrolling</h4>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">bool</span> <span class="token function">leftToRight</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                          <span class="token comment">// Set text direction left to right.</span>
+<span class="token keyword">bool</span> <span class="token function">rightToLeft</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                          <span class="token comment">// Set text direction right to left.</span>
+
+<span class="token keyword">bool</span> <span class="token function">autoscroll</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                           <span class="token comment">// Enable automatic display scrolling.</span>
+<span class="token keyword">bool</span> <span class="token function">noAutoscroll</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                         <span class="token comment">// Disable automatic display scrolling.</span>
+
+<span class="token keyword">bool</span> <span class="token function">scrollDisplayLeft</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                    <span class="token comment">// Scroll display one position left.</span>
+<span class="token keyword">bool</span> <span class="token function">scrollDisplayRight</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                   <span class="token comment">// Scroll display one position right.</span>
+</code></pre>
+<h4 id="cursor-and-clear-functions">Cursor and Clear Functions</h4>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">bool</span> <span class="token function">home</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Move cursor to home position.</span>
+
+<span class="token keyword">bool</span> <span class="token function">clear</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                <span class="token comment">// Clear display using normal LCD clear command.</span>
+<span class="token keyword">bool</span> <span class="token function">initClear</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                            <span class="token comment">// Re-synchronize, initialize, restore state and clear display.</span>
+
+<span class="token keyword">bool</span> <span class="token function">setCursor</span><span class="token punctuation">(</span>uint8_t col<span class="token punctuation">,</span> uint8_t row<span class="token punctuation">)</span><span class="token punctuation">;</span>    <span class="token comment">// Set cursor position.</span>
+
+<span class="token keyword">void</span> <span class="token function">setRowOffsets</span><span class="token punctuation">(</span><span class="token keyword">int</span> row0<span class="token punctuation">,</span> <span class="token keyword">int</span> row1<span class="token punctuation">,</span>
+                   <span class="token keyword">int</span> row2<span class="token punctuation">,</span> <span class="token keyword">int</span> row3<span class="token punctuation">)</span><span class="token punctuation">;</span>      <span class="token comment">// Set DDRAM row offsets.</span>
+</code></pre>
+<h4 id="custom-characters">Custom Characters</h4>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">bool</span> <span class="token function">createChar</span><span class="token punctuation">(</span>uint8_t<span class="token punctuation">,</span> uint8_t<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>         <span class="token comment">// Define custom character in CGRAM.</span>
+</code></pre>
+<h4 id="verification">Verification</h4>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">void</span> <span class="token function">verifyBegin</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                          <span class="token comment">// Enter verify mode and clear previous verify errors.</span>
+<span class="token keyword">void</span> <span class="token function">verifyEnd</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                            <span class="token comment">// Leave verify mode and return to normal write mode.</span>
+
+<span class="token keyword">void</span> <span class="token function">verifyClr</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                            <span class="token comment">// Clear verify error state.</span>
+<span class="token keyword">bool</span> <span class="token function">verifyOk</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                             <span class="token comment">// Return true if no verify error has occurred.</span>
+</code></pre>
+<p>This layer therefore provides:</p>
+<ul>
+<li>Arduino-compatible LCD functionality,</li>
+<li>runtime synchronization support,</li>
+<li>verification,</li>
+<li>recovery,</li>
+<li>and display state management.</li>
+</ul>
+<hr>
+<h2 id="stablelcd-2">StableLCD</h2>
+<p><code>StableLCD</code> is the default user-facing implementation.</p>
+<p>It combines:</p>
+<ul>
+<li><code>LiquidCrystalBase</code></li>
+<li>and the <code>HD44780PIN</code> backend</li>
+</ul>
+<p>into a simple single-class interface.</p>
+<hr>
+<h3 id="stablelcd-phy-binding">StableLCD PHY Binding</h3>
+<p><code>HD44780PIN</code> implements the required PHY hardware interface:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">bool</span> HD44780PIN<span class="token operator">::</span><span class="token function">is4bitMode</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>              <span class="token comment">// Return true for 4-bit interface, false for 8-bit.</span>
+  <span class="token keyword">return</span> mode4bit<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> HD44780PIN<span class="token operator">::</span><span class="token function">setEN</span><span class="token punctuation">(</span><span class="token keyword">bool</span> en<span class="token punctuation">)</span> <span class="token punctuation">{</span>            <span class="token comment">// Control LCD Enable signal.</span>
+  <span class="token function">digitalWrite</span><span class="token punctuation">(</span>e_pin<span class="token punctuation">,</span> en<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> HD44780PIN<span class="token operator">::</span><span class="token function">setRW</span><span class="token punctuation">(</span><span class="token keyword">bool</span> rw<span class="token punctuation">)</span> <span class="token punctuation">{</span>            <span class="token comment">// Control LCD Read/Write signal.</span>
+  <span class="token function">digitalWrite</span><span class="token punctuation">(</span>rw_pin<span class="token punctuation">,</span> rw<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> HD44780PIN<span class="token operator">::</span><span class="token function">setRS</span><span class="token punctuation">(</span><span class="token keyword">bool</span> rs<span class="token punctuation">)</span> <span class="token punctuation">{</span>            <span class="token comment">// Control LCD Register Select signal.</span>
+  <span class="token function">digitalWrite</span><span class="token punctuation">(</span>rs_pin<span class="token punctuation">,</span> rs<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p>Similarly, bus transfers are implemented through:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">void</span> HD44780PIN<span class="token operator">::</span><span class="token function">writeBus</span><span class="token punctuation">(</span>uint8_t val<span class="token punctuation">)</span><span class="token punctuation">;</span>      <span class="token comment">// Write value to LCD data bus.</span>
+uint8_t HD44780PIN<span class="token operator">::</span><span class="token function">readBus</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>               <span class="token comment">// Read current value from LCD data bus.</span>
+</code></pre>
+<p>This fully binds:</p>
+<ul>
+<li>synchronization logic,</li>
+<li>protocol handling,</li>
+<li>and HD44780 communication</li>
+</ul>
+<p>to the physical hardware implementation.</p>
+<hr>
+<h3 id="stablelcd-liquidcrystalbase-binding">StableLCD LiquidCrystalBase Binding</h3>
+<p><code>StableLCD</code> binds the high-level API to the backend implementation:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">bool</span> StableLCD<span class="token operator">::</span><span class="token function">command</span><span class="token punctuation">(</span>uint8_t value<span class="token punctuation">)</span> <span class="token punctuation">{</span>     <span class="token comment">// Send command byte to LCD controller.</span>
+  <span class="token keyword">return</span> lcd<span class="token punctuation">.</span><span class="token function">command</span><span class="token punctuation">(</span>value<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">bool</span> StableLCD<span class="token operator">::</span><span class="token function">writeData</span><span class="token punctuation">(</span>uint8_t value<span class="token punctuation">)</span> <span class="token punctuation">{</span>   <span class="token comment">// Write data byte to DDRAM or CGRAM.</span>
+  <span class="token keyword">return</span> lcd<span class="token punctuation">.</span><span class="token function">writeData</span><span class="token punctuation">(</span>value<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+uint8_t StableLCD<span class="token operator">::</span><span class="token function">readData</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>              <span class="token comment">// Read data byte from DDRAM or CGRAM.</span>
+  <span class="token keyword">return</span> lcd<span class="token punctuation">.</span><span class="token function">readData</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">bool</span> StableLCD<span class="token operator">::</span><span class="token function">enableLCD</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                <span class="token comment">// Enable LCD display and optional power control.</span>
+  <span class="token keyword">return</span> lcd<span class="token punctuation">.</span><span class="token function">enable</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> StableLCD<span class="token operator">::</span><span class="token function">disableLCD</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>               <span class="token comment">// Disable LCD display and optional power control.</span>
+  lcd<span class="token punctuation">.</span><span class="token function">disable</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">bool</span> StableLCD<span class="token operator">::</span><span class="token function">initLCD</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                  <span class="token comment">// Synchronize and initialize LCD controller.</span>
+  <span class="token keyword">return</span> lcd<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p>This connects:</p>
+<ul>
+<li>the high-level display API,</li>
+<li>to the synchronization-aware PHY layer,</li>
+<li>through a very small and explicit interface binding.</li>
+</ul>
+<hr>
+<h3 id="constructor-and-initialization-philosophy">Constructor and Initialization Philosophy</h3>
+<p>StableLCD intentionally separates:</p>
+<ul>
+<li>object construction,</li>
+<li>from hardware initialization.</li>
+</ul>
+<p>Constructors are configuration only.</p>
+<p>Example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp">StableLCD <span class="token function">lcd</span><span class="token punctuation">(</span>rs<span class="token punctuation">,</span> rw<span class="token punctuation">,</span> en<span class="token punctuation">,</span> d4<span class="token punctuation">,</span> d5<span class="token punctuation">,</span> d6<span class="token punctuation">,</span> d7<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre>
+<p>The constructor:</p>
+<ul>
+<li>stores pin configuration,</li>
+<li>initializes internal state,</li>
+<li>and configures software structures.</li>
+</ul>
+<p>It does not:</p>
+<ul>
+<li>access hardware,</li>
+<li>communicate with the LCD,</li>
+<li>perform synchronization,</li>
+<li>execute blocking operations,</li>
+<li>or perform operations that may fail.</li>
+</ul>
+<p>Actual hardware initialization occurs later through:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp">lcd<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">16</span><span class="token punctuation">,</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre>
+<p>Constructors should ideally remain:</p>
+<ul>
+<li>fast,</li>
+<li>simple,</li>
+<li>non-blocking,</li>
+<li>failure free,</li>
+<li>and independent of hardware state.</li>
+</ul>
+<p>Constructors should generally avoid direct hardware access because hardware resources represent shared external state whose initialization order may not yet be defined.</p>
+<p>This is particularly important in embedded systems where:</p>
+<ul>
+<li>global object construction order is not guaranteed,</li>
+<li>shared state may still be undefined,</li>
+<li><code>volatile</code> variables may not yet be initialized,</li>
+<li>peripherals may not yet be initialized,</li>
+<li>clocks may not yet be stable,</li>
+<li>interrupts may not yet be configured,</li>
+<li>DMA systems may not yet be operational,</li>
+<li>hardware registers may not yet contain valid state,</li>
+<li>and startup sequences may still be incomplete.</li>
+</ul>
+<p>Hardware communication and synchronization should therefore normally occur during explicit runtime initialization rather than during object construction.</p>
+<p>For this reason, StableLCD constructors only store configuration.</p>
+<p>Actual hardware communication, synchronization, and failure-prone initialization are performed explicitly by <code>begin()</code>.</p>
+<hr>
+<h3 id="why-the-layering-matters">Why the Layering Matters</h3>
+<p>The layered architecture allows:</p>
+<ul>
+<li>synchronization logic to remain reusable,</li>
+<li>hardware implementations to evolve independently,</li>
+<li>applications to remain portable,</li>
+<li>and recovery behavior to remain consistent throughout the library.</li>
+</ul>
+<p>Alternative PHY implementations may easily be created for:</p>
+<ul>
+<li>direct port I/O,</li>
+<li>FastIO,</li>
+<li>I2C GPIO expanders,</li>
+<li>SPI interfaces,</li>
+<li>memory mapped interfaces,</li>
+<li>or platform-specific optimized drivers.</li>
+</ul>
+<p>The same synchronization philosophy is reused consistently across:</p>
+<ul>
+<li>initialization,</li>
+<li>verification,</li>
+<li>recovery,</li>
+<li>and runtime communication.</li>
+</ul>
+<hr>
+<h1 id="porting-and-custom-backends">Porting and Custom Backends</h1>
+<p>StableLCD is designed so that the synchronization and recovery logic normally does not need to be modified when porting the library to new hardware platforms or interfaces.</p>
+<p>The synchronization algorithms are implemented inside <code>HD44780PHY</code>.</p>
+<p>Porting therefore typically consists only of implementing a new physical backend layer.</p>
+<p>Examples:</p>
+<ul>
+<li>direct GPIO access,</li>
+<li>FastIO,</li>
+<li>I2C GPIO expanders,</li>
+<li>SPI interfaces,</li>
+<li>memory mapped interfaces,</li>
+<li>DMA assisted interfaces,</li>
+<li>or platform-specific optimized drivers.</li>
+</ul>
+<p>The synchronization, initialization, timeout, verification, and recovery logic remains unchanged.</p>
+<hr>
+<h2 id="backend-architecture">Backend Architecture</h2>
+<p>The architecture separates:</p>
+<ul>
+<li>protocol and synchronization logic,</li>
+<li>from physical hardware access.</li>
+</ul>
+<p><code>HD44780PHY</code> contains:</p>
+<ul>
+<li>initialization synchronization,</li>
+<li>busy polling,</li>
+<li>timeout handling,</li>
+<li>command sequencing,</li>
+<li>and runtime synchronization logic.</li>
+</ul>
+<p>A backend implementation only provides the physical bus operations required by the PHY layer.</p>
+<p>This separation makes backend implementations relatively small and simple.</p>
+<hr>
+<h2 id="implementing-a-custom-backend">Implementing a Custom Backend</h2>
+<p>A custom backend normally derives from <code>HD44780PHY</code> and implements the required virtual hardware interface.</p>
+<p>Example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">class</span> <span class="token class-name">HD44780I2C</span> <span class="token operator">:</span> <span class="token keyword">public</span> HD44780PHY <span class="token punctuation">{</span>
+<span class="token keyword">protected</span><span class="token operator">:</span>
+  <span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">initPins</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>
+  <span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">is4bitMode</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>
+
+  <span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">setEN</span><span class="token punctuation">(</span><span class="token keyword">bool</span> high<span class="token punctuation">)</span> override<span class="token punctuation">;</span>
+  <span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">setRW</span><span class="token punctuation">(</span><span class="token keyword">bool</span> high<span class="token punctuation">)</span> override<span class="token punctuation">;</span>
+  <span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">setRS</span><span class="token punctuation">(</span><span class="token keyword">bool</span> high<span class="token punctuation">)</span> override<span class="token punctuation">;</span>
+
+  <span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">writeState</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>
+  <span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">readState</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>
+
+  <span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">writeBus</span><span class="token punctuation">(</span>uint8_t val<span class="token punctuation">)</span> override<span class="token punctuation">;</span>
+  <span class="token keyword">virtual</span> uint8_t <span class="token function">readBus</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+</code></pre>
+<p>The PHY layer then automatically provides:</p>
+<ul>
+<li>synchronization,</li>
+<li>initialization,</li>
+<li>busy polling,</li>
+<li>timeout handling,</li>
+<li>and command sequencing.</li>
+</ul>
+<p>Only the physical interface itself must be implemented.</p>
+<hr>
+<h2 id="reference-backend-hd44780pin">Reference Backend: HD44780PIN</h2>
+<p><code>HD44780PIN</code> is the default Arduino GPIO backend included with StableLCD.</p>
+<p>Example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">void</span> HD44780PIN<span class="token operator">::</span><span class="token function">setEN</span><span class="token punctuation">(</span><span class="token keyword">bool</span> en<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  <span class="token function">digitalWrite</span><span class="token punctuation">(</span>e_pin<span class="token punctuation">,</span> en<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> HD44780PIN<span class="token operator">::</span><span class="token function">setRW</span><span class="token punctuation">(</span><span class="token keyword">bool</span> rw<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  <span class="token function">digitalWrite</span><span class="token punctuation">(</span>rw_pin<span class="token punctuation">,</span> rw<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> HD44780PIN<span class="token operator">::</span><span class="token function">setRS</span><span class="token punctuation">(</span><span class="token keyword">bool</span> rs<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  <span class="token function">digitalWrite</span><span class="token punctuation">(</span>rs_pin<span class="token punctuation">,</span> rs<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p>Similarly, the data bus interface is implemented through:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">void</span> HD44780PIN<span class="token operator">::</span><span class="token function">writeBus</span><span class="token punctuation">(</span>uint8_t val<span class="token punctuation">)</span><span class="token punctuation">;</span>      <span class="token comment">// Write value to LCD data bus.</span>
+uint8_t HD44780PIN<span class="token operator">::</span><span class="token function">readBus</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>               <span class="token comment">// Read current value from LCD data bus.</span>
+</code></pre>
+<p>This backend therefore connects the generic synchronization-aware PHY layer directly to Arduino GPIO hardware.</p>
+<hr>
+<h2 id="fast-busy-polling">Fast Busy Polling</h2>
+<p>Efficient busy polling is important for StableLCD performance.</p>
+<p>The PHY layer therefore supports an optional optimized <code>DB7</code> read function:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">readDB7</span><span class="token punctuation">(</span><span class="token punctuation">)</span>                       <span class="token comment">// Optional optimized DB7 read.</span>
+</code></pre>
+<p>When implemented, <code>readBusy()</code> may use this function directly instead of performing a complete status read.</p>
+<p>Example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">bool</span> HD44780PIN<span class="token operator">::</span><span class="token function">readDB7</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                 <span class="token comment">// Optional optimized DB7 read.</span>
+  <span class="token keyword">return</span> <span class="token function">digitalRead</span><span class="token punctuation">(</span>db_pin<span class="token punctuation">[</span><span class="token number">7</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p>This allows:</p>
+<ul>
+<li>faster busy polling,</li>
+<li>reduced bus overhead,</li>
+<li>and significantly improved synchronization performance.</li>
+</ul>
+<p>This optimization becomes particularly important for:</p>
+<ul>
+<li>FastIO implementations,</li>
+<li>high-speed MCUs,</li>
+<li>and heavily synchronized runtime environments.</li>
+</ul>
+<hr>
+<h2 id="bit-and-8-bit-interfaces">4-Bit and 8-Bit Interfaces</h2>
+<p>The PHY layer supports both:</p>
+<ul>
+<li>4-bit interfaces,</li>
+<li>and 8-bit interfaces.</li>
+</ul>
+<p>The backend controls this through:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">is4bitMode</span><span class="token punctuation">(</span><span class="token punctuation">)</span>                    <span class="token comment">// Return true for 4-bit interface, false for 8-bit.</span>
+</code></pre>
+<p>The PHY layer automatically adapts:</p>
+<ul>
+<li>initialization,</li>
+<li>synchronization,</li>
+<li>command transfers,</li>
+<li>and busy polling</li>
+</ul>
+<p>to the selected interface width.</p>
+<hr>
+<h2 id="runtime-power-control">Runtime Power Control</h2>
+<p>Optional LCD power control may also be integrated directly into the backend.</p>
+<p>Example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">power</span><span class="token punctuation">(</span><span class="token keyword">bool</span> on<span class="token punctuation">)</span> override          <span class="token comment">// Optional display power control.</span>
+</code></pre>
+<p>When implemented:</p>
+<ul>
+<li><code>enable()</code> automatically powers the display on,</li>
+<li>and <code>disable()</code> automatically powers the display off.</li>
+</ul>
+<p>This allows:</p>
+<ul>
+<li>hard controller resets,</li>
+<li>low-power operation,</li>
+<li>and runtime recovery strategies</li>
+</ul>
+<p>to integrate naturally into the synchronization framework.</p>
+<hr>
+<h2 id="wrapper-layer-integration">Wrapper Layer Integration</h2>
+<p>The user-visible <code>StableLCD</code> class combines:</p>
+<ul>
+<li><code>LiquidCrystalBase</code>,</li>
+<li>and the <code>HD44780PIN</code> backend</li>
+</ul>
+<p>into a simple single-class interface.</p>
+<p>Example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">class</span> <span class="token class-name">StableLCD</span> <span class="token operator">:</span> <span class="token keyword">public</span> LiquidCrystalBase <span class="token punctuation">{</span>
+<span class="token keyword">private</span><span class="token operator">:</span>
+  HD44780PIN lcd<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+</code></pre>
+<p><code>StableLCD</code> itself contains almost no synchronization logic.</p>
+<p>Its primary purpose is:</p>
+<ul>
+<li>API exposure,</li>
+<li>layer binding,</li>
+<li>and simplified user integration.</li>
+</ul>
+<hr>
+<h2 id="why-the-backend-architecture-matters">Why the Backend Architecture Matters</h2>
+<p>Because the synchronization logic is separated from the physical hardware layer:</p>
+<ul>
+<li>new backends automatically inherit the synchronization framework,</li>
+<li>initialization algorithms remain consistent,</li>
+<li>recovery behavior remains reusable,</li>
+<li>and platform-specific optimization becomes isolated to small backend implementations.</li>
+</ul>
+<p>The same PHY synchronization logic may therefore be reused across many different hardware platforms and interface technologies.</p>
+<hr>
+<h1 id="runtime-synchronization-and-recovery">Runtime Synchronization and Recovery</h1>
+<p>Traditional HD44780 libraries typically assume that synchronization only needs to occur once during startup.</p>
+<p>StableLCD instead treats synchronization as an ongoing runtime property.</p>
+<p>This allows the library to:</p>
+<ul>
+<li>recover from communication loss,</li>
+<li>recover from partial resets,</li>
+<li>recover from delayed controller startup,</li>
+<li>detect timeout conditions,</li>
+<li>and maintain synchronization during long-running operation.</li>
+</ul>
+<hr>
+<h2 id="synchronization-during-runtime">Synchronization During Runtime</h2>
+<p>The HD44780 controller itself has no guaranteed mechanism for detecting communication phase loss.</p>
+<p>If:</p>
+<ul>
+<li>the MCU resets,</li>
+<li>the LCD resets,</li>
+<li>power becomes unstable,</li>
+<li>electrical noise corrupts transfers,</li>
+<li>or communication becomes interrupted,</li>
+</ul>
+<p>then the controller and software may lose synchronization.</p>
+<p>Traditional libraries typically assume this never happens after initialization.</p>
+<p>StableLCD instead allows synchronization to be restored dynamically during runtime.</p>
+<hr>
+<h2 id="initclear">initClear()</h2>
+<p><code>initClear()</code> combines:</p>
+<ul>
+<li>synchronization,</li>
+<li>initialization,</li>
+<li>and display clear</li>
+</ul>
+<p>into a single operation.</p>
+<p>Example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp">lcd<span class="token punctuation">.</span><span class="token function">initClear</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre>
+<p>Unlike a traditional <code>clear()</code>, <code>initClear()</code> first performs a complete synchronization and initialization sequence before clearing the display.</p>
+<p>This allows:</p>
+<ul>
+<li>communication recovery,</li>
+<li>controller resynchronization,</li>
+<li>and runtime reinitialization</li>
+</ul>
+<p>to occur automatically.</p>
+<p>Because the synchronization algorithm uses active busy polling rather than long fixed delays, the operation normally completes quickly when the controller is already operating correctly.</p>
+<hr>
+<h2 id="recovery-philosophy">Recovery Philosophy</h2>
+<p>StableLCD intentionally treats synchronization as a recoverable runtime state rather than a startup-only event.</p>
+<p>This means:</p>
+<ul>
+<li>synchronization may safely be repeated,</li>
+<li>initialization may safely be repeated,</li>
+<li>and recovery may safely occur during runtime operation.</li>
+</ul>
+<p>The synchronization algorithm is therefore designed to tolerate:</p>
+<ul>
+<li>repeated execution,</li>
+<li>partial controller state loss,</li>
+<li>and uncertain communication phase conditions.</li>
+</ul>
+<hr>
+<h2 id="timeout-handling-1">Timeout Handling</h2>
+<p>StableLCD uses timeout protection to prevent permanent blocking if communication fails.</p>
+<p>Timeout conditions normally indicate:</p>
+<ul>
+<li>hardware faults,</li>
+<li>permanent reset conditions,</li>
+<li>disconnected displays,</li>
+<li>defective controllers,</li>
+<li>or controllers that never leave the busy state.</li>
+</ul>
+<p>Under normal operation, timeout handling should rarely or never activate.</p>
+<hr>
+<h2 id="verification-and-runtime-recovery">Verification and Runtime Recovery</h2>
+<p>Verification mode allows software to confirm that:</p>
+<ul>
+<li>commands reached the controller,</li>
+<li>data reached the controller memory,</li>
+<li>and communication remains synchronized.</li>
+</ul>
+<p>Example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp">lcd<span class="token punctuation">.</span><span class="token function">verifyBegin</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"SYSTEM OK"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+lcd<span class="token punctuation">.</span><span class="token function">verifyEnd</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>lcd<span class="token punctuation">.</span><span class="token function">verifyOk</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  lcd<span class="token punctuation">.</span><span class="token function">initClear</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p>This allows:</p>
+<ul>
+<li>runtime recovery,</li>
+<li>watchdog integration,</li>
+<li>and fault-tolerant display handling.</li>
+</ul>
+<hr>
+<h2 id="watchdog-integration">Watchdog Integration</h2>
+<p>In safety-oriented systems, the display itself may contain important operational or fault information.</p>
+<p>Verification therefore allows software to confirm that:</p>
+<ul>
+<li>the controller accepted the transmitted data,</li>
+<li>and communication remains synchronized.</li>
+</ul>
+<p>Example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp">lcd<span class="token punctuation">.</span><span class="token function">verifyBegin</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"ERROR"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+lcd<span class="token punctuation">.</span><span class="token function">verifyEnd</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>lcd<span class="token punctuation">.</span><span class="token function">verifyOk</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  <span class="token function">systemWatchdogFault</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p>The exact watchdog or fault handling mechanism is application specific and therefore intentionally not implemented by the library itself.</p>
+<hr>
+<h2 id="repeated-synchronization">Repeated Synchronization</h2>
+<p>Because synchronization is fast and fully runtime-safe, some applications may intentionally perform repeated synchronization periodically.</p>
+<p>Examples:</p>
+<ul>
+<li>after communication errors,</li>
+<li>after power instability,</li>
+<li>after watchdog recovery,</li>
+<li>after partial resets,</li>
+<li>or during periodic runtime maintenance.</li>
+</ul>
+<p>In many systems, repeated synchronization through <code>initClear()</code> may provide significantly more reliable long-term operation than relying on startup-only initialization assumptions.</p>
+<hr>
+<h2 id="runtime-robustness">Runtime Robustness</h2>
+<p>StableLCD is designed around the principle that synchronization should remain actively maintainable throughout runtime operation.</p>
+<p>Rather than assuming:</p>
+<ul>
+<li>ideal startup timing,</li>
+<li>perfect hardware behavior,</li>
+<li>or permanent synchronization,</li>
+</ul>
+<p>the library continuously supports:</p>
+<ul>
+<li>recovery,</li>
+<li>verification,</li>
+<li>timeout protection,</li>
+<li>and deterministic controller communication.</li>
+</ul>
+<hr>
+<h1 id="performance-considerations">Performance Considerations</h1>
+<p>StableLCD is designed around active synchronization rather than fixed delays.</p>
+<p>This allows the library to operate:</p>
+<ul>
+<li>robustly,</li>
+<li>deterministically,</li>
+<li>and often significantly faster than traditional HD44780 libraries.</li>
+</ul>
+<hr>
+<h2 id="busy-polling-vs-fixed-delays">Busy Polling vs Fixed Delays</h2>
+<p>Traditional HD44780 libraries commonly use conservative fixed delays.</p>
+<p>Example:</p>
+<ul>
+<li>waiting a fixed time after every command,</li>
+<li>or waiting long startup delays during initialization.</li>
+</ul>
+<p>This approach is simple but inefficient because:</p>
+<ul>
+<li>the controller is often ready much sooner,</li>
+<li>delays accumulate during runtime,</li>
+<li>and worst-case timing must always be assumed.</li>
+</ul>
+<p>StableLCD instead uses active busy polling.</p>
+<p>Operations therefore complete:</p>
+<ul>
+<li>exactly when the controller becomes ready,</li>
+<li>rather than after a predetermined delay interval.</li>
+</ul>
+<hr>
+<h2 id="initialization-performance">Initialization Performance</h2>
+<p>Traditional initialization sequences often use long startup delays to guarantee operation under uncertain power conditions.</p>
+<p>In practice, these delays may become much larger than the actual controller startup time.</p>
+<p>StableLCD instead continuously polls the busy state during synchronization.</p>
+<p>This allows:</p>
+<ul>
+<li>fast initialization when the controller is already ready,</li>
+<li>while still tolerating delayed startup conditions,</li>
+<li>unstable reset timing,</li>
+<li>and uncertain synchronization states.</li>
+</ul>
+<p>The initialization time therefore automatically adapts to the actual controller behavior.</p>
+<hr>
+<h2 id="runtime-synchronization-cost">Runtime Synchronization Cost</h2>
+<p>Because synchronization uses active polling instead of large fixed delays, runtime resynchronization may often be performed with relatively small overhead.</p>
+<p>This is particularly important for:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp">lcd<span class="token punctuation">.</span><span class="token function">initClear</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre>
+<p>which combines:</p>
+<ul>
+<li>synchronization,</li>
+<li>initialization,</li>
+<li>and display clear.</li>
+</ul>
+<p>In many systems, the operation is fast enough that it may safely be used periodically or after communication uncertainty without causing significant runtime slowdown.</p>
+<hr>
+<h2 id="readdb7-optimization">readDB7() Optimization</h2>
+<p>Busy polling performance depends heavily on the speed of reading the busy flag (<code>DB7</code>).</p>
+<p>StableLCD therefore supports an optional optimized backend hook:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">readDB7</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+</code></pre>
+<p>When implemented efficiently:</p>
+<ul>
+<li>complete status reads may be avoided,</li>
+<li>GPIO overhead may be reduced,</li>
+<li>and synchronization speed may improve significantly.</li>
+</ul>
+<p>This optimization becomes particularly important for:</p>
+<ul>
+<li>FastIO backends,</li>
+<li>direct register access,</li>
+<li>and high-speed MCUs.</li>
+</ul>
+<hr>
+<h2 id="fastio-and-direct-register-access">FastIO and Direct Register Access</h2>
+<p>The default <code>HD44780PIN</code> backend uses:</p>
+<ul>
+<li><code>digitalWrite()</code>,</li>
+<li><code>digitalRead()</code>,</li>
+<li>and <code>pinMode()</code>.</li>
+</ul>
+<p>While portable, these functions may be relatively slow on some platforms.</p>
+<p>Custom backends may instead use:</p>
+<ul>
+<li>direct register access,</li>
+<li>FastIO libraries,</li>
+<li>memory mapped GPIO,</li>
+<li>or platform-specific optimized hardware access.</li>
+</ul>
+<p>Because the synchronization logic remains inside <code>HD44780PHY</code>, such optimizations may often be implemented entirely inside the backend layer.</p>
+<hr>
+<h2 id="bit-vs-8-bit-interfaces">4-Bit vs 8-Bit Interfaces</h2>
+<p>StableLCD supports both:</p>
+<ul>
+<li>4-bit interfaces,</li>
+<li>and 8-bit interfaces.</li>
+</ul>
+<p>8-bit interfaces:</p>
+<ul>
+<li>transfer data faster,</li>
+<li>but require more GPIO pins.</li>
+</ul>
+<p>4-bit interfaces:</p>
+<ul>
+<li>reduce pin count,</li>
+<li>but require additional bus cycles.</li>
+</ul>
+<p>The synchronization framework itself operates identically in both modes.</p>
+<hr>
+<h2 id="delay-free-runtime-operation">Delay-Free Runtime Operation</h2>
+<p>StableLCD intentionally avoids large fixed delays during normal operation.</p>
+<p>Only very small hardware timing delays remain:</p>
+<ul>
+<li>bus setup timing,</li>
+<li>enable pulse timing,</li>
+<li>and required HD44780 bus timing constraints.</li>
+</ul>
+<p>This allows the library to operate efficiently even in heavily synchronized or frequently verified systems.</p>
+<hr>
+<h2 id="robustness-and-performance">Robustness and Performance</h2>
+<p>StableLCD does not treat:</p>
+<ul>
+<li>robustness,</li>
+<li>synchronization,</li>
+<li>and performance</li>
+</ul>
+<p>as conflicting goals.</p>
+<p>Instead, active synchronization allows:</p>
+<ul>
+<li>improved reliability,</li>
+<li>deterministic behavior,</li>
+<li>reduced unnecessary waiting,</li>
+<li>and efficient runtime recovery</li>
+</ul>
+<p>to coexist within the same driver architecture.</p>
+<hr>
+<h1 id="hardware-considerations">Hardware Considerations</h1>
+<p>StableLCD is designed for robust HD44780 communication, but reliable operation still depends on correct hardware design.</p>
+<p>The library can detect and recover from many communication problems, but it cannot compensate for fundamentally incorrect wiring, missing signals, unstable power, or unsupported hardware configurations.</p>
+<hr>
+<h2 id="rw-signal-required">R/W Signal Required</h2>
+<p>StableLCD requires access to the HD44780 <code>RW</code> signal.</p>
+<p>Unlike many simple LCD libraries that only write to the display, StableLCD reads from the controller in order to support:</p>
+<ul>
+<li>busy flag polling,</li>
+<li>controller synchronization,</li>
+<li>display verification,</li>
+<li><code>readData()</code>,</li>
+<li>and optimized runtime recovery.</li>
+</ul>
+<p>Because of this, <code>RW</code> must be connected to a controllable MCU pin.</p>
+<p>Tying <code>RW</code> permanently low disables readback and prevents StableLCD from using its main robustness features.</p>
+<hr>
+<h2 id="data-bus-pullups">Data Bus Pullups</h2>
+<p>When the LCD bus is configured for reading, StableLCD uses input pullups in the default GPIO backend.</p>
+<p>This is important because the LCD data bus may be floating during:</p>
+<ul>
+<li>power-up,</li>
+<li>controller reset,</li>
+<li>disconnected hardware,</li>
+<li>or high impedance bus conditions.</li>
+</ul>
+<p>With pullups enabled, a floating <code>DB7</code> line reads as high.</p>
+<p>This causes busy polling to interpret the controller as not ready, which is safer than falsely assuming that the controller is ready.</p>
+<hr>
+<h2 id="power-and-reset-behavior">Power and Reset Behavior</h2>
+<p>LCD modules may not become ready immediately after power is applied.</p>
+<p>Slow power rise time, controller reset delay, unstable supply voltage, or module-specific behavior may affect when communication becomes possible.</p>
+<p>StableLCD handles this by actively polling the controller instead of relying only on fixed startup delays.</p>
+<p>If optional power control is implemented in the backend, <code>begin()</code> may power the display on and <code>end()</code> may power it off.</p>
+<p>This can be useful for:</p>
+<ul>
+<li>low-power systems,</li>
+<li>hard recovery after communication failure,</li>
+<li>and systems where the LCD power supply is controlled by the MCU.</li>
+</ul>
+<hr>
+<h2 id="signal-integrity">Signal Integrity</h2>
+<p>HD44780 parallel buses are usually simple and reliable at short distances.</p>
+<p>However, communication problems may occur with:</p>
+<ul>
+<li>long wires,</li>
+<li>poor grounding,</li>
+<li>noisy environments,</li>
+<li>weak power supply decoupling,</li>
+<li>loose connectors,</li>
+<li>or high bus capacitance.</li>
+</ul>
+<p>For best reliability:</p>
+<ul>
+<li>keep LCD wires short,</li>
+<li>use proper ground connections,</li>
+<li>add decoupling close to the LCD module,</li>
+<li>avoid routing LCD wires near noisy power switching signals,</li>
+<li>and ensure that all signal voltage levels are compatible.</li>
+</ul>
+<hr>
+<h2 id="bit-and-8-bit-wiring">4-Bit and 8-Bit Wiring</h2>
+<p>StableLCD supports both 4-bit and 8-bit interfaces.</p>
+<p>In 4-bit mode only <code>DB7..DB4</code> are used.</p>
+<p>In 8-bit mode all data pins <code>DB7..DB0</code> are used.</p>
+<p>The selected constructor determines which mode is used, and <code>HD44780PHY</code> automatically adapts command transfers, reads, busy polling, and initialization to the selected bus width.</p>
+<hr>
+<h2 id="lcd-clones-and-compatible-controllers">LCD Clones and Compatible Controllers</h2>
+<p>Many character LCD modules use HD44780-compatible controllers rather than original HD44780 chips.</p>
+<p>Most compatible controllers behave sufficiently similarly for normal operation, but timing, reset behavior, and edge cases may vary.</p>
+<p>StableLCD attempts to handle such differences by:</p>
+<ul>
+<li>avoiding fixed delay assumptions where possible,</li>
+<li>using busy flag polling,</li>
+<li>applying timeout protection,</li>
+<li>and supporting runtime resynchronization.</li>
+</ul>
+<hr>
+<h2 id="what-hardware-cannot-be-verified">What Hardware Cannot Be Verified</h2>
+<p>StableLCD can verify that expected data exists inside the LCD controller memory.</p>
+<p>It cannot directly verify the optical output of the display.</p>
+<p>Software verification cannot detect:</p>
+<ul>
+<li>broken LCD glass,</li>
+<li>missing backlight,</li>
+<li>poor contrast adjustment,</li>
+<li>damaged segment drivers,</li>
+<li>or physical display defects.</li>
+</ul>
+<p>For such failures, external sensing or visual inspection would be required.</p>
+<p>StableLCD verification therefore confirms controller memory state, not the physical appearance of the display.</p>
+<hr>
+<h1 id="example-usage-patterns">Example Usage Patterns</h1>
+<p>StableLCD supports both:</p>
+<ul>
+<li>simple Arduino-style usage,</li>
+<li>and more advanced synchronized runtime operation.</li>
+</ul>
+<p>The following examples show common usage patterns.</p>
+<hr>
+<h2 id="demo1---basic-usage">DEMO1 - Basic Usage</h2>
+<p>Basic usage is intentionally simple and similar to traditional Arduino LCD libraries.</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">&lt;StableLCD.h&gt;</span>          </span><span class="token comment">// Include the library code</span>
+
+<span class="token comment">// Initialize pins</span>
+<span class="token keyword">const</span> <span class="token keyword">int</span> rs <span class="token operator">=</span> <span class="token number">6</span><span class="token punctuation">,</span> rw <span class="token operator">=</span> <span class="token number">7</span><span class="token punctuation">,</span> en <span class="token operator">=</span> <span class="token number">8</span><span class="token punctuation">;</span>               <span class="token comment">// Control pins</span>
+<span class="token keyword">const</span> <span class="token keyword">int</span> d4 <span class="token operator">=</span> <span class="token number">9</span><span class="token punctuation">,</span> d5 <span class="token operator">=</span> <span class="token number">10</span><span class="token punctuation">,</span> d6 <span class="token operator">=</span> <span class="token number">11</span><span class="token punctuation">,</span> d7 <span class="token operator">=</span> <span class="token number">12</span><span class="token punctuation">;</span>    <span class="token comment">// Data bus pins</span>
+
+StableLCD <span class="token function">lcd</span><span class="token punctuation">(</span>rs<span class="token punctuation">,</span> rw<span class="token punctuation">,</span> en<span class="token punctuation">,</span> d4<span class="token punctuation">,</span> d5<span class="token punctuation">,</span> d6<span class="token punctuation">,</span> d7<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">void</span> <span class="token function">setup</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  lcd<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">16</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>             <span class="token comment">// Set up the LCD's number of columns and rows</span>
+  lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"StableLCD"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>       <span class="token comment">// Output text</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> <span class="token function">loop</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p>The library automatically performs:</p>
+<ul>
+<li>synchronization,</li>
+<li>initialization,</li>
+<li>busy polling,</li>
+<li>and timeout handling.</li>
+</ul>
+<hr>
+<h2 id="demo2---verification-example">DEMO2 - Verification Example</h2>
+<p>Verification mode allows software to verify that expected data exists inside the LCD controller memory.</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">&lt;StableLCD.h&gt;</span>          </span><span class="token comment">// Include the library code</span>
+
+<span class="token comment">// Initialize pins</span>
+<span class="token keyword">const</span> <span class="token keyword">int</span> rs <span class="token operator">=</span> <span class="token number">6</span><span class="token punctuation">,</span> rw <span class="token operator">=</span> <span class="token number">7</span><span class="token punctuation">,</span> en <span class="token operator">=</span> <span class="token number">8</span><span class="token punctuation">;</span>               <span class="token comment">// Control pins</span>
+<span class="token keyword">const</span> <span class="token keyword">int</span> d4 <span class="token operator">=</span> <span class="token number">9</span><span class="token punctuation">,</span> d5 <span class="token operator">=</span> <span class="token number">10</span><span class="token punctuation">,</span> d6 <span class="token operator">=</span> <span class="token number">11</span><span class="token punctuation">,</span> d7 <span class="token operator">=</span> <span class="token number">12</span><span class="token punctuation">;</span>    <span class="token comment">// Data bus pins</span>
+
+StableLCD <span class="token function">lcd</span><span class="token punctuation">(</span>rs<span class="token punctuation">,</span> rw<span class="token punctuation">,</span> en<span class="token punctuation">,</span> d4<span class="token punctuation">,</span> d5<span class="token punctuation">,</span> d6<span class="token punctuation">,</span> d7<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">void</span> <span class="token function">setup</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  lcd<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">16</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>             <span class="token comment">// Set up the LCD's number of columns and rows</span>
+  lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"StableLCD"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>       <span class="token comment">// Output text</span>
+
+  lcd<span class="token punctuation">.</span><span class="token function">home</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                   <span class="token comment">// Place cursor on text to verify</span>
+
+  lcd<span class="token punctuation">.</span><span class="token function">verifyBegin</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>            <span class="token comment">// Verify mode begins</span>
+  lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"StableLCD"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>       <span class="token comment">// Verify text is StableLCD</span>
+  lcd<span class="token punctuation">.</span><span class="token function">verifyEnd</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>              <span class="token comment">// Verify mode ends</span>
+
+  lcd<span class="token punctuation">.</span><span class="token function">setCursor</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>           <span class="token comment">// Set cursor on first position, line 2</span>
+
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>lcd<span class="token punctuation">.</span><span class="token function">verifyOk</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>         <span class="token comment">// Output result of verification</span>
+    lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"Verify ok"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+    lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"Verify error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> <span class="token function">loop</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p>The verification state remains active until <code>verifyEnd()</code> is called.</p>
+<p><code>verifyOk()</code> returns:</p>
+<ul>
+<li>true if verification succeeded,</li>
+<li>or false if any verification mismatch or timeout occurred.</li>
+</ul>
+<hr>
+<h2 id="demo3---runtime-recovery-example">DEMO3 - Runtime Recovery Example</h2>
+<p>Verification may also be used during continuous runtime operation.</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">&lt;StableLCD.h&gt;</span>          </span><span class="token comment">// Include the library code</span>
+
+<span class="token comment">// Initialize pins</span>
+<span class="token keyword">const</span> <span class="token keyword">int</span> rs <span class="token operator">=</span> <span class="token number">6</span><span class="token punctuation">,</span> rw <span class="token operator">=</span> <span class="token number">7</span><span class="token punctuation">,</span> en <span class="token operator">=</span> <span class="token number">8</span><span class="token punctuation">;</span>               <span class="token comment">// Control pins</span>
+<span class="token keyword">const</span> <span class="token keyword">int</span> d4 <span class="token operator">=</span> <span class="token number">9</span><span class="token punctuation">,</span> d5 <span class="token operator">=</span> <span class="token number">10</span><span class="token punctuation">,</span> d6 <span class="token operator">=</span> <span class="token number">11</span><span class="token punctuation">,</span> d7 <span class="token operator">=</span> <span class="token number">12</span><span class="token punctuation">;</span>    <span class="token comment">// Data bus pins</span>
+
+StableLCD <span class="token function">lcd</span><span class="token punctuation">(</span>rs<span class="token punctuation">,</span> rw<span class="token punctuation">,</span> en<span class="token punctuation">,</span> d4<span class="token punctuation">,</span> d5<span class="token punctuation">,</span> d6<span class="token punctuation">,</span> d7<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">void</span> <span class="token function">setup</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  lcd<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">16</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>             <span class="token comment">// Set up the LCD's number of columns and rows</span>
+  lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"StableLCD"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>       <span class="token comment">// Output text</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> <span class="token function">loop</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                   <span class="token comment">// Do continuous verification</span>
+
+  lcd<span class="token punctuation">.</span><span class="token function">home</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                   <span class="token comment">// Place cursor on text to verify</span>
+
+  lcd<span class="token punctuation">.</span><span class="token function">verifyBegin</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>            <span class="token comment">// Verify mode begins</span>
+  lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"StableLCD"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>       <span class="token comment">// Verify text is StableLCD</span>
+  lcd<span class="token punctuation">.</span><span class="token function">verifyEnd</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>              <span class="token comment">// Verify mode ends</span>
+
+  lcd<span class="token punctuation">.</span><span class="token function">setCursor</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>           <span class="token comment">// Set cursor on first position, line 2</span>
+
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>lcd<span class="token punctuation">.</span><span class="token function">verifyOk</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>         <span class="token comment">// Output result of verification</span>
+    lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"Verify ok"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+    lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"Verify error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">1000</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                <span class="token comment">// Demo delay only.</span>
+
+    lcd<span class="token punctuation">.</span><span class="token function">initClear</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>            <span class="token comment">// Re-initialize and clear display</span>
+    lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"StableLCD"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>     <span class="token comment">// Output text</span>
+
+    <span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">1000</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                <span class="token comment">// Demo delay only.</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p>This demonstrates:</p>
+<ul>
+<li>runtime verification,</li>
+<li>communication fault detection,</li>
+<li>and automatic recovery through <code>initClear()</code>.</li>
+</ul>
+<p>The delays are included only to make recovery behavior visible during demonstration.</p>
+<hr>
+<h2 id="runtime-reinitialization">Runtime Reinitialization</h2>
+<p><code>initClear()</code> combines:</p>
+<ul>
+<li>synchronization,</li>
+<li>initialization,</li>
+<li>and display clear</li>
+</ul>
+<p>into a single operation.</p>
+<pre class=" language-cpp"><code class="prism  language-cpp">lcd<span class="token punctuation">.</span><span class="token function">initClear</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"Recovered"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre>
+<p>Because synchronization uses active busy polling rather than large fixed delays, runtime reinitialization may often be performed with relatively small overhead.</p>
+<hr>
+<h2 id="power-controlled-displays">Power Controlled Displays</h2>
+<p>If the backend implements:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">power</span><span class="token punctuation">(</span><span class="token keyword">bool</span> on<span class="token punctuation">)</span>
+</code></pre>
+<p>then display power control becomes integrated into the synchronization framework.</p>
+<pre class=" language-cpp"><code class="prism  language-cpp">lcd<span class="token punctuation">.</span><span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>     <span class="token comment">// Disable LCD and optional power control.</span>
+lcd<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">// Re-enable and synchronize display.</span>
+</code></pre>
+<p>This may be useful for:</p>
+<ul>
+<li>low-power systems,</li>
+<li>battery powered systems,</li>
+<li>and hard recovery after communication failure.</li>
+</ul>
+<hr>
+<h2 id="custom-backends">Custom Backends</h2>
+<p>Applications may also use custom hardware backends.</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">class</span> <span class="token class-name">MyLCD</span> <span class="token operator">:</span> <span class="token keyword">public</span> LiquidCrystalBase <span class="token punctuation">{</span>
+<span class="token keyword">private</span><span class="token operator">:</span>
+  HD44780I2C lcd<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+</code></pre>
+<p>The synchronization and recovery logic remains unchanged because it is implemented inside <code>HD44780PHY</code>.</p>
+<p>Only the physical hardware backend changes.</p>
+<hr>
+<h1 id="conclusion">Conclusion</h1>
+<p>The HD44780 controller architecture originates from an era where:</p>
+<ul>
+<li>fixed delays,</li>
+<li>startup assumptions,</li>
+<li>and simple write-only communication</li>
+</ul>
+<p>were generally considered acceptable.</p>
+<p>For decades, most HD44780 software has therefore relied primarily on:</p>
+<ul>
+<li>conservative timing delays,</li>
+<li>startup-only synchronization,</li>
+<li>and assumptions that communication remains permanently synchronized after initialization.</li>
+</ul>
+<p>StableLCD instead treats synchronization as an active runtime property.</p>
+<p>Rather than relying primarily on fixed delays and startup assumptions, the library continuously supports:</p>
+<ul>
+<li>busy flag polling,</li>
+<li>synchronization recovery,</li>
+<li>runtime verification,</li>
+<li>timeout protection,</li>
+<li>and deterministic controller communication.</li>
+</ul>
+<p>The synchronization framework is designed to tolerate:</p>
+<ul>
+<li>uncertain startup timing,</li>
+<li>partial resets,</li>
+<li>communication phase loss,</li>
+<li>unstable power conditions,</li>
+<li>and long-running runtime operation.</li>
+</ul>
+<p>At the same time, the architecture separates:</p>
+<ul>
+<li>synchronization logic,</li>
+<li>from physical hardware access.</li>
+</ul>
+<p>This allows:</p>
+<ul>
+<li>backend portability,</li>
+<li>hardware-specific optimization,</li>
+<li>and reusable synchronization behavior</li>
+</ul>
+<p>across multiple platforms and interface technologies.</p>
+<p>StableLCD therefore demonstrates that even a very old controller architecture such as the HD44780 may still support:</p>
+<ul>
+<li>modern synchronization principles,</li>
+<li>robust runtime behavior,</li>
+<li>verification,</li>
+<li>recovery,</li>
+<li>and efficient operation</li>
+</ul>
+<p>when the driver itself is designed around synchronization rather than delay assumptions.</p>
+<p>The library intentionally attempts to combine:</p>
+<ul>
+<li>traditional Arduino simplicity,</li>
+<li>deterministic embedded-system behavior,</li>
+<li>and synchronization-oriented driver design.</li>
+</ul>
+<p>Although originally developed for HD44780-compatible displays, many of the same principles also apply more generally to embedded communication design:</p>
+<ul>
+<li>synchronize actively,</li>
+<li>verify when possible,</li>
+<li>avoid unnecessary assumptions,</li>
+<li>and treat recovery as part of normal runtime operation rather than as an exceptional condition.</li>
+</ul>
+<p><em><strong>Do equal things equally.</strong></em></p>
+<hr>
+<h2 id="contact">Contact</h2>
+<p>If you have any questions, feedback, or need further assistance, feel free to <a href="https://www.arduino.one/contact.html">Contact Me</a> through my online form.</p>
+
+    </div>
+  </div>
+</body>
+
+</html>
