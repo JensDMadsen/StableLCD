@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.1
+- Updated library metadata for improved Library Manager search.
+
 ## [1.0.0] - 2026-05-25
 ### Initial Release
 - First stable release
