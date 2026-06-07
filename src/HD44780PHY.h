@@ -58,7 +58,7 @@ protected:
   virtual void writeBus(uint8_t val) = 0;                       // Write value to LCD data bus. In 4-bit mode only DB7..DB4 are transferred.
   virtual uint8_t readBus() = 0;                                // Read current value from LCD data bus. In 4-bit mode only DB7..DB4 are used and DB3..DB0 must return as zero.
   virtual bool readDB7() { return (readBus() & 0x80) != 0; }    // Read DB7 signal state. Backends may override for faster busy polling.
-  virtual void power(bool on) { }                               // Called by enable() and disable().
+  virtual void power(bool) { }                               // Called by enable() and disable().
 
 public:
   // ------------------------------------------------------------------------

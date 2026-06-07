@@ -132,8 +132,7 @@
   </div>
   <div class="stackedit__right">
     <div class="stackedit__html">
-      <hr>
-<h1 id="stablelcd">StableLCD</h1>
+      <h1 id="stablelcd">StableLCD</h1>
 <h2 id="table-of-contents">Table of Contents</h2>
 <ul>
 <li><a href="#introduction">Introduction</a></li>
@@ -848,7 +847,7 @@ lcd<span class="token punctuation">.</span><span class="token function">begin</s
 <p>The default implementation reads <code>DB7</code> through <code>readBus()</code>.</p>
 <p>However, backends may override this function for faster direct busy polling.</p>
 <p>Optional display power control may also be implemented:</p>
-<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">power</span><span class="token punctuation">(</span><span class="token keyword">bool</span> on<span class="token punctuation">)</span> <span class="token punctuation">{</span> <span class="token punctuation">}</span>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">power</span><span class="token punctuation">(</span><span class="token keyword">bool</span><span class="token punctuation">)</span> <span class="token punctuation">{</span> <span class="token punctuation">}</span>
 </code></pre>
 <p>This hook is automatically called by:</p>
 <ul>
@@ -1255,7 +1254,7 @@ uint8_t HD44780PIN<span class="token operator">::</span><span class="token funct
 <h2 id="runtime-power-control">Runtime Power Control</h2>
 <p>Optional LCD power control may also be integrated directly into the backend.</p>
 <p>Example:</p>
-<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">power</span><span class="token punctuation">(</span><span class="token keyword">bool</span> on<span class="token punctuation">)</span> override          <span class="token comment">// Optional display power control.</span>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">power</span><span class="token punctuation">(</span><span class="token keyword">bool</span><span class="token punctuation">)</span> override          <span class="token comment">// Optional display power control.</span>
 </code></pre>
 <p>When implemented:</p>
 <ul>
@@ -1808,7 +1807,7 @@ lcd<span class="token punctuation">.</span><span class="token function">print</s
 <hr>
 <h2 id="power-controlled-displays">Power Controlled Displays</h2>
 <p>If the backend implements:</p>
-<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">power</span><span class="token punctuation">(</span><span class="token keyword">bool</span> on<span class="token punctuation">)</span>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">power</span><span class="token punctuation">(</span><span class="token keyword">bool</span><span class="token punctuation">)</span>
 </code></pre>
 <p>then display power control becomes integrated into the synchronization framework.</p>
 <pre class=" language-cpp"><code class="prism  language-cpp">lcd<span class="token punctuation">.</span><span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>     <span class="token comment">// Disable LCD and optional power control.</span>

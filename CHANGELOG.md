@@ -2,7 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
-## 1.0.1
+## [1.0.2] - 2026-06-07
+### Fixed
+- Removed compiler warnings reported by newer Arduino IDE toolchains
+- Fixed unused parameter warnings in optional virtual backend hooks
+- Fixed constructor initialization order warnings in HD44780PIN
+
+## [1.0.1] - 2026-05-29
+### Metadata
 - Updated library metadata for improved Library Manager search.
 
 ## [1.0.0] - 2026-05-25

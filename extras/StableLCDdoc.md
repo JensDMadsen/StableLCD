@@ -834,7 +834,7 @@ However, backends may override this function for faster direct busy polling.
 Optional display power control may also be implemented:
 
 ```cpp
-virtual void power(bool on) { }
+virtual void power(bool) { }
 ```
 
 This hook is automatically called by:
@@ -1366,7 +1366,7 @@ Optional LCD power control may also be integrated directly into the backend.
 Example:
 
 ```cpp
-virtual void power(bool on) override          // Optional display power control.
+virtual void power(bool) override          // Optional display power control.
 ```
 
 When implemented:
@@ -2082,7 +2082,7 @@ Because synchronization uses active busy polling rather than large fixed delays,
 If the backend implements:
 
 ```cpp
-virtual void power(bool on)
+virtual void power(bool)
 ```
 
 then display power control becomes integrated into the synchronization framework.
