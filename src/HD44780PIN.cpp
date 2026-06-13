@@ -98,3 +98,19 @@ uint8_t HD44780PIN::readBus()  {                                // Read current 
 bool HD44780PIN::readDB7() {                                    // Optional optimized DB7 read. If not implemented readBus() bit 7 is used.
   return digitalRead(db_pin[7]);
 }
+
+bool HD44780PIN::power(bool on) {                               // Sets power pin high (on) or low (off).
+  if (pwr_pin == 0) return true;                                // Return true if power pin not present.
+  pinMode(pwr_pin, OUTPUT);                                     // Set power pin as output.
+  if (on) {                                                     // Check if on:
+    digitalWrite(pwr_pin, true);                                //   Turn power on.
+    readState();                                                //   Set data bus as INPUT_PULLUP and detect when power is on:
+    const uint32_t start = millis();                            //   Store start time for timeout.
+    while (readBus() < 0xF0) {                                  //   Wait until DB7..DB4 read high.
+      if ((millis() - start) > TIMEOUT_MS) return false;        //     Return false and exit on timeout.
+    }                                                           //   Now upper data bus is high.
+  } else {                                                      // Check if off:
+    digitalWrite(pwr_pin, false);                               //   Turn power off.
+  }
+  return true;                                                  // Return true if power switching succeeded.
+}

@@ -38,7 +38,7 @@
 // ------------------------------------------------------------------------
 
 class LiquidCrystalBase : public Print {
-protected:
+public:
   // commands
   static constexpr uint8_t LCD_CLEARDISPLAY     = 0x01;
   static constexpr uint8_t LCD_RETURNHOME       = 0x02;
@@ -87,7 +87,7 @@ public:
   LiquidCrystalBase(bool mode4bit) : lcd_functionset( mode4bit? LCD_4BIT_INIT : LCD_8BIT_INIT ) { }             // Constructor, configuration only. Sets lcd_functionset to interface width.
 
   bool begin(uint8_t cols, uint8_t rows, uint8_t charsize = LCD_5x8DOTS);                                       // Actual initialization: Configure, initialize and clear display.
-  void end()                    { disableLCD();                                                               } // Stop display.
+  void end()                    { disableLCD();                                                               } // Disable display and optional LCD power.
 
   bool noDisplay()              { return command( lcd_displaycontrol &= ~LCD_DISPLAYON );                     } // Turn the display off (quickly)
   bool display()                { return command( lcd_displaycontrol |= LCD_DISPLAYON );                      } // Turn the display on (quickly)
@@ -117,11 +117,13 @@ public:
   virtual bool command(uint8_t value ) = 0;                     // Send command byte to LCD controller. Returns false on timeout.
   virtual bool writeData(uint8_t value) = 0;                    // Write data byte to DDRAM or CGRAM. Returns false on timeout.
   virtual uint8_t readData() = 0;                               // Read data byte from DDRAM or CGRAM. Returns 0xff on error.
-  virtual bool enableLCD() = 0;                                 // Enables LCD display and turns power on.
-  virtual void disableLCD() = 0;                                // Disables LCD display and turns power off.
-  virtual bool initLCD() = 0;                                   // Initialize LCD bus/controller. Returns false on timeout or if not enabled.
   virtual size_t write(uint8_t value) override;                 // Setup Print::write to send to writeData().
   using Print::write;
+
+protected:
+  virtual bool enableLCD() = 0;                                 // Enables LCD display and turns power on.
+  virtual bool disableLCD() = 0;                                // Disables LCD display and turns power off.
+  virtual bool initLCD() = 0;                                   // Initialize LCD bus/controller. Returns false on timeout or if not enabled.
 
 private:
 // Modes

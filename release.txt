@@ -1,0 +1,8 @@
+StableLCD 1.1.0
+
+- Added optional LCD power control support
+- Added DEMO4_PowerCycle example
+- Added DEMO5_SlowRiseTest example
+- Improved HD44780 synchronization and initialization robustness
+- Added repeated synchronization confirmation during initialization
+- Updated documentation, examples, and demo naming

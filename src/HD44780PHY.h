@@ -46,7 +46,7 @@
 class HD44780PHY {
 protected:
   static constexpr uint16_t TIMEOUT_MS = 200;                   // Set timeout in ms.
-  virtual void busDelay() { delayMicroseconds(1); }             // Small bus timing delay.
+  virtual void busDelay()   { delayMicroseconds(1);           } // Small bus timing delay.
 
   virtual void initPins() = 0;                                  // Initialize physical LCD pins.
   virtual bool is4bitMode() = 0;                                // Return true for 4-bit interface, false for 8-bit.
@@ -57,8 +57,8 @@ protected:
   virtual void readState() = 0;                                 // Set data bus direction to read mode.
   virtual void writeBus(uint8_t val) = 0;                       // Write value to LCD data bus. In 4-bit mode only DB7..DB4 are transferred.
   virtual uint8_t readBus() = 0;                                // Read current value from LCD data bus. In 4-bit mode only DB7..DB4 are used and DB3..DB0 must return as zero.
-  virtual bool readDB7() { return (readBus() & 0x80) != 0; }    // Read DB7 signal state. Backends may override for faster busy polling.
-  virtual void power(bool) { }                               // Called by enable() and disable().
+  virtual bool readDB7()    { return (readBus() & 0x80) != 0; } // Read DB7 signal state. Backends may override for faster busy polling.
+  virtual bool power(bool)  { return true;                    } // Allow optional LCD power, returns true if no optional power. Called by enable() and disable().
 
 public:
   // ------------------------------------------------------------------------
@@ -66,7 +66,7 @@ public:
   // ------------------------------------------------------------------------
 
   bool enable();                                                // Enables display and turns power on.
-  void disable();                                               // Disables display and turns power off.
+  bool disable();                                               // Disables display and turns power off.
   bool init();                                                  // Initialize LCD bus/controller. Returns false on timeout or if not enabled.
   bool readBusy();                                              // Read busy flag from LCD controller.
   bool waitBusy();                                              // Wait until busy flag clears. Returns false on timeout or if not initialized.

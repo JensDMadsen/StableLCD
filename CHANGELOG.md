@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0] - 2026-06-12
+
+### Added
+- Optional LCD power control support via backend power pin
+- Runtime LCD power support in begin(), end(), enable(), and disable()
+- HD44780PIN now waits for upper LCD data bus lines to read high after power-up before synchronization continues
+- DEMO4_PowerCycle example for repeated LCD power-cycle verification
+- DEMO5_SlowRiseTest example for slow LCD supply rise testing
+
+### Changed
+- Improved HD44780 synchronization and initialization robustness
+- Added repeated synchronization confirmation rounds during initialization
+- Improved documentation of synchronization and recovery behavior
+- Updated README documentation and examples
+- Updated demo naming for clearer purpose description
+
+### Tested
+- Long-duration repeated LCD power-cycle verification testing
+- Repeated slow-rise LCD supply power-cycle verification testing
+
 ## [1.0.2] - 2026-06-07
 ### Fixed
 - Removed compiler warnings reported by newer Arduino IDE toolchains

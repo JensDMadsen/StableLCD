@@ -37,11 +37,11 @@
 // ------------------------------------------------------------------------
 
 class HD44780PIN : public HD44780PHY {
-public:                                                                                                                                 // Constructors:
-  HD44780PIN(uint8_t rs,uint8_t rw,uint8_t ena,uint8_t d0,uint8_t d1,uint8_t d2,uint8_t d3,uint8_t d4,uint8_t d5,uint8_t d6,uint8_t d7) //   Setup 8 bit display, R/W
-    :mode4bit(false),rs_pin(rs),rw_pin(rw), e_pin(ena),db_pin{d0,d1,d2,d3,d4,d5,d6,d7} {}
-  HD44780PIN(uint8_t rs,uint8_t rw,uint8_t ena,uint8_t d4,uint8_t d5,uint8_t d6,uint8_t d7)                                             //   Setup 4 bit display, R/W
-    :mode4bit(true),rs_pin(rs),rw_pin(rw), e_pin(ena),db_pin{255,255,255,255,d4,d5,d6,d7} {}
+public:                                                                                                                                               // Constructors:
+  HD44780PIN(uint8_t rs,uint8_t rw,uint8_t ena,uint8_t d0,uint8_t d1,uint8_t d2,uint8_t d3,uint8_t d4,uint8_t d5,uint8_t d6,uint8_t d7,uint8_t pwr=0) //   Setup 8 bit display, R/W
+    :mode4bit(false),rs_pin(rs),rw_pin(rw), e_pin(ena),db_pin{d0,d1,d2,d3,d4,d5,d6,d7},pwr_pin(pwr) {}
+  HD44780PIN(uint8_t rs,uint8_t rw,uint8_t ena,uint8_t d4,uint8_t d5,uint8_t d6,uint8_t d7,uint8_t pwr=0)                                             //   Setup 4 bit display, R/W
+    :mode4bit(true),rs_pin(rs),rw_pin(rw), e_pin(ena),db_pin{255,255,255,255,d4,d5,d6,d7},pwr_pin(pwr) {}
 protected:
   virtual void initPins() override;             // Initialize physical LCD pins.
   virtual bool is4bitMode() override;           // Return true for 4-bit interface, false for 8-bit.
@@ -53,7 +53,7 @@ protected:
   virtual void writeBus(uint8_t val) override;  // Write value to LCD data bus. In 4-bit mode only DB7..DB4 are transferred.
   virtual uint8_t readBus() override;           // Read current value from LCD data bus. In 4-bit mode only DB7..DB4 are used and DB3..DB0 must return as zero.
   virtual bool readDB7() override;              // Optional optimized DB7 read. If not implemented readBus() bit 7 is used.
-  virtual void power(bool) override {}       // Optional display power control.
+  virtual bool power(bool on) override;         // Optional display power control.
 private:
   // Modes
   bool mode4bit;                                // Set true for 4-bit interface.
@@ -62,6 +62,7 @@ private:
   uint8_t rw_pin;                               // RW-pin for HD44780. Low for write to LCD, and high for read from LCD.
   uint8_t e_pin;                                // E-pin for HD44780. Enable/Strobe pin, activated by high signal.
   uint8_t db_pin[8];                            // Data pins DB0..DB7 to HD44780. In 4-bit mode only DB7..DB4 are used.
+  uint8_t pwr_pin;                              // Pin used for power, is 0 if not used.
 };
 
 #endif

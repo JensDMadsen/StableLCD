@@ -34,16 +34,22 @@
 // ------------------------------------------------------------------------
 
 bool HD44780PHY::enable() {                             // Enables display and turns power on.
-  power(true);                                          // Turn power on.
+  initPins();                                           // Prepare power on, Controle signals is output low.
+  writeBus(0);                                          // Databus is set to outputs low.
+  writeState();                                         // Set as outputs.
+  if (!power(true)) return false;                       // Turn power on, return false on error.
   enabled = true;                                       // Display is now enabled and ready to be initialized.
   initialized = false;                                  // Display is not yet initialized.
   return true;                                          // Return always true.
 }
 
-void HD44780PHY::disable() {                            // Disables display and turns power off.
+bool HD44780PHY::disable() {                            // Disables display and turns power off.
   enabled = false;                                      // Display is disabled.
   initialized = false;                                  // Display not initialized.
-  power(false);                                         // Turn power off.
+  initPins();                                           // Prepare power off, Controle signals is output low.
+  writeBus(0);                                          // Databus is set to outputs low.
+  writeState();                                         // Set as outputs.
+  return power(false);                                  // Turn power off.
 }
 
 bool HD44780PHY::init() {                               // Initialize LCD bus/controller. Returns false on timeout or if not enabled.
@@ -53,14 +59,24 @@ bool HD44780PHY::init() {                               // Initialize LCD bus/co
   busIsReadMode = false;                                // Force enterReadMode() to set up read mode.
   enterReadMode();                                      // Make sure pins are in read mode.
   setRS(false);                                         // Select status/command register.
-  bool second;                                          // Stores second DB7 candidate.
+  uint8_t stable = 0;                                   // Count stable 0,0 synchronization rounds.
   do {                                                  // Wait until not busy.
     do {                                                //   Loop until busy candidate is low.
       if ((millis()-start) > TIMEOUT_MS) return false;  //     Return false and exit on timeout.
     } while (readRawDB7());                             //   Wait until DB7 candidate is low.
-    second = readRawDB7();                              //   Read second DB7 candidate.
-    writeRaw(0x30); writeRaw(0x30); writeRaw(0x30);     //   Force known 8-bit state: Sends raw 3 x 0x3 when 4-bit interface, or 3 x 0x30 at 8-bit interface.
-  } while (second);                                     // Retry on possible 0,1 nibble phase mismatch. Leave on stable 0,0.
+
+    bool second = readRawDB7();                         //   Read second DB7 candidate.
+    if (second) {                                       //   Possible 0,1 nibble phase mismatch:
+      stable = 0;                                       //     Restart stable synchronization counter.
+    } else {                                            //   Stable 0,0 observed:
+      stable++;                                         //     Count one stable synchronization round.
+    }
+    if (stable < 3) {                                   //   More confirmation needed:
+      writeRaw(0x30); writeRaw(0x30); writeRaw(0x30);   //   Force known 8-bit state: Sends raw 3 x 0x3 when 4-bit interface, or 3 x 0x30 at 8-bit interface.
+    }
+  } while (stable < 3);                                 // Retry on 0,1 nibble phase mismatch. Leave on stable 0,0.
+  
+                                                        // Synchronization is complete:
   if (is4bitMode()) {                                   // If 4-bit interface:
     writeRaw(0x20);                                     //   Set display to 4-bit interface.
   }

@@ -1,4 +1,4 @@
-
+﻿
 # StableLCD
 
 ## Table of Contents
@@ -38,7 +38,7 @@ The library includes:
 - timeout handling,
 - display verification,
 - communication recovery,
-- optional power management,
+- optional LCD power control,
 - and a robust initialization sequence capable of synchronizing with the LCD controller even when startup timing, controller state, or nibble alignment is unknown.
 
 Unlike traditional LCD libraries that blindly assume writes succeed, StableLCD can verify that expected data actually exists in display memory by reading data back from the LCD controller. **This library requires the RW (Read/Write) pin to be connected**, as it uses the pin for busy flag polling, display verification, and robust synchronization.
@@ -137,13 +137,59 @@ if (!lcd.verifyOk()) {
 }
 ```
 
-For more severe communication failures, a full power-cycle recovery strategy may also be used:
+---
+
+## Power Control Example
+
+StableLCD optionally supports LCD power switching through a dedicated power control pin.
+
+When a power pin is configured, the library automatically integrates LCD power sequencing into:
+
+- `begin()`
+- `end()`
+- `enable()`
+- and `disable()`
+
+Example:
 
 ```cpp
-lcd.end();
-delay(100);
-lcd.begin(16,2);
+#include <StableLCD.h>
+
+const int rs = 6, rw = 7, en = 8;
+const int d4 = 9, d5 = 10, d6 = 11, d7 = 12;
+const int pwr = 5;
+
+StableLCD lcd(rs, rw, en, d4, d5, d6, d7, pwr);
+
+void setup() {
+  lcd.begin(16, 2);
+  lcd.print("StableLCD");
+}
+
+void loop() {
+}
 ```
+
+If `pwr` is set to `0`, power control is disabled and the LCD is assumed to remain permanently powered.
+
+For severe communication failures, a full power-cycle recovery strategy may be used:
+
+```cpp
+lcd.end();        // Optional power-off if power pin is configured.
+delay(100);
+lcd.begin(16,2);  // Re-enable, synchronize and initialize display.
+```
+
+Power control is fully optional and backward compatible with existing applications.
+
+For more about power control, refer to examples `DEMO4_PowerCycle` and `DEMO5_SlowRiseTest`.
+
+- `DEMO4_PowerCycle`
+  - Repeatedly power-cycles the LCD and verifies a displayed counter value after each cycle.
+
+- `DEMO5_SlowRiseTest`
+  - Performs the same verification process but is for extremely slow LCD supply rise conditions.
+  - An additional settle-delay parameter is configured for unusually slow power rise behavior.
 
 StableLCD has currently been tested primarily on AVR architecture using Arduino Nano boards, but the architecture is intended to remain portable across platforms supporting Arduino-compatible GPIO and timing functions.
 
@@ -153,7 +199,7 @@ The HD44780 controller was introduced in 1984 - over 40 years ago. For four deca
 
 This library started as a simple observation: Why wait 50ms when the display might be ready in 2ms? Why assume the controller is in 8-bit mode when it might not be?
 
-The synchronization algorithm in this library is, to my knowledge, the first published method that can reliably synchronize with an HD44780 display from *any* unknown state - without a single fixed delay. No assumptions about power-up timing, no assumptions about mode, no assumptions about nibble alignment. 
+The synchronization algorithm in this library is, to my knowledge, the first published method that can reliably synchronize with an HD44780 display from *any* unknown state - without a single fixed delay. No assumptions about power-up timing, no assumptions about mode, no assumptions about nibble alignment.
 
 The name "StableLCD" reflects the goal: a display driver that doesn't just work most of the time, but works *reliably* - even when things go wrong. Runtime verification, automatic recovery, and active synchronization aren't just features; they're the foundation.
 
@@ -192,6 +238,8 @@ StableLCD therefore attempts to:
 - avoid infinite blocking,
 - recover synchronization,
 - and verify display correctness during runtime.
+
+The synchronization and recovery mechanisms have been tested under repeated LCD power-cycle conditions.
 
 Timeout handling is integrated into the communication layer to prevent software from hanging indefinitely if the LCD controller stops responding.
 
@@ -262,9 +310,9 @@ if (!lcd.verifyOk()) {
 For more severe failures:
 
 ```cpp
-lcd.end();
+lcd.end();        // Optional power-off if power pin is configured.
 delay(100);
-lcd.begin(16,2);
+lcd.begin(16,2);  // Re-enable, synchronize and initialize display.
 ```
 
 ---
@@ -403,8 +451,11 @@ Responsibilities include:
 - RS control,
 - RW control,
 - Enable control,
+- optional LCD power control,
 - bus direction switching,
 - and physical data bus access.
+
+The optional power pin, when configured, is also handled by this backend.
 
 The current implementation has primarily been tested on AVR architecture using Arduino Nano boards.
 
@@ -536,7 +587,7 @@ StableLCD therefore uses a synchronization-oriented initialization algorithm ins
 
 The classical HD44780 initialization sequence transmits the `0x3` synchronization command three times in order to force the controller toward 8-bit operation before optionally switching to 4-bit mode.
 
-This method is significantly more robust than relying only on power-on-reset defaults, because it attempts to synchronize with the controller regardless of its previous communication state.
+This method is significantly more robust than relying only on power-on-reset defaults because it attempts to synchronize with the controller regardless of its previous communication state.
 
 However, the traditional sequence still depends heavily on fixed timing delays.
 
@@ -558,7 +609,7 @@ While this approach often works well, it also has limitations:
 
 StableLCD uses the same classical synchronization mechanism.
 
-However, instead of performing the sequence only once with fixed delays, the complete 3×`0x3` synchronization sequence is repeated as long as unstable busy-flag behavior is observed.
+However, instead of performing the sequence only once with fixed delays, the complete `3×0x3` synchronization sequence is repeated as long as unstable busy-flag behavior is observed.
 
 This allows synchronization recovery to continue until stable operation is reached.
 
@@ -602,61 +653,86 @@ The following situations are possible:
 | `0,1` | Busy/phase unknown |
 | `0,0` | Busy is certainly inactive, phase still unknown |
 
-The important observation is that only `0,0` guarantees that the controller is no longer busy.
+The important observation is that **only `0,0` guarantees that the controller is no longer busy.**
 
 However, even in the `0,0` case, nibble phase may still be unknown.
 
 ---
 
-## Nibble Synchronization
+## The Nibble Latch Problem
 
-In 4-bit mode, each byte transfer consists of:
+The HD44780 controller internally stores one nibble while waiting for the second nibble of a 4-bit transfer.
 
-1. high nibble,
-2. followed by low nibble.
+This internal nibble latch may contain arbitrary leftover data from an incomplete transfer or undefined startup state.
 
-If synchronization is lost, the software and controller may disagree about which nibble is currently being transferred.
+When the first synchronization sequence is transmitted, the controller may therefore combine the first `0x3` nibble with unknown previous latch contents. This may temporarily form an unintended garbage instruction that requires execution time. During this period the controller remains busy and ignores additional transfers.
 
-This creates a nibble-phase mismatch where:
+This means that the first successful `0,0` observation does not necessarily guarantee that 8-bit synchronization has been established.
 
-- a low nibble may be interpreted as a high nibble,
-- or a high nibble may be interpreted as a low nibble.
-
-The initialization algorithm therefore waits until the first observed `DB7=0` condition before immediately sampling `DB7` again.
-
-This leaves two practically relevant situations:
-
-| Samples | Meaning | Action |
-|---|---|---|
-| `0,0` | Controller is not busy. Phase may still be unknown. | Send repeated 3×`0x3` synchronization sequence. |
-| `0,1` | Busy/phase uncertain. | Send repeated 3×`0x3` synchronization sequence and continue synchronization loop. |
-
-The repeated 3×`0x3` synchronization sequence forces the controller toward 8-bit mode regardless of previous nibble alignment.
-
-Once stable 8-bit operation is reached, busy polling eventually stabilizes as either:
-
-- `1,1` while busy,
-- or `0,0` when no longer busy.
-
-The synchronization loop therefore continues until stable `0,0` is reached.
+The first synchronization round may instead have been consumed by leftover nibble-latch state executing one random instruction.
 
 ---
 
-## Why Repeated 3×0x3 Synchronization Is Used
+## Three Stable Synchronization Rounds
 
-The repeated 3×`0x3` synchronization sequence is inherited from the traditional HD44780 initialization procedure.
+To solve the nibble-latch problem, StableLCD requires **three consecutive stable `0,0` synchronization rounds** before normal initialization continues. Each stable round guarantees that the busy flag has been observed inactive in at least two consecutive reads and is ready to accept a command.
 
-Its purpose is to repeatedly force the controller toward a known 8-bit command state regardless of previous synchronization loss.
+| Stable round | Purpose |
+|---|---|
+| 1 | Absorbs any unknown previous nibble-latch state and might issue a random instruction or switch to 8-bit state for synchronization |
+| 2 | Forces 8-bit operation to perform safe deterministic synchronization |
+| 3 | Confirms stable busy-flag behavior (two non-busy) before continuing initialization |
 
-Repeated synchronization writes are important because:
+If a `0,1` pattern is observed at any time, synchronization stability is considered uncertain and the stable-round counter is reset and `3×0x3` synchronization commands are sent.
 
-- the controller may currently expect either a high nibble or low nibble,
-- previous commands may have been incomplete,
-- or communication may have stopped mid-transfer.
+This ensures that:
 
-By repeatedly transmitting the 3×`0x3` synchronization sequence, the software eventually forces the controller back into a predictable command interpretation state.
+- leftover latch states do not cause false synchronization,
+- the controller is forced into a known 8-bit synchronization state,
+- and unstable phase behavior restarts synchronization recovery automatically.
 
-StableLCD combines this classical synchronization technique with active busy polling.
+After synchronization completes:
+
+- the controller is synchronized,
+- the busy flag is known to be inactive,
+- nibble-latch uncertainty has been resolved,
+- and the controller may safely continue initialization.
+
+If 4-bit mode is used, the library then transmits the normal `0x20` transition command to enter 4-bit operation.
+
+---
+
+## Complete Synchronization Loop
+
+The synchronization loop can be summarized as:
+
+```cpp
+uint8_t stable = 0;           // Count stable 0,0 synchronization rounds.
+do {                          // Wait until not busy.
+  do {                        //   Loop until busy candidate is low.
+    if ((millis()-start) > TIMEOUT_MS) return false;  // Return false and exit on timeout.
+  } while (readRawDB7());     //   Wait until DB7 candidate is low.
+
+  bool second = readRawDB7(); //   Read second DB7 candidate.
+  if (second) {               //   Possible 0,1 nibble phase mismatch:
+    stable = 0;               //     Restart stable synchronization counter.
+  } else {                    //   Stable 0,0 observed:
+    stable++;                 //     Count one stable synchronization round.
+  }
+  if (stable < 3) {           //   More confirmation needed:
+    writeRaw(0x30);
+    writeRaw(0x30);
+
+    writeRaw(0x30);           //   Force known 8-bit state: Sends raw 3 x 0x3 when 4-bit interface, or 3 x 0x30 at 8-bit interface.
+  }
+} while (stable < 3);         // Retry on 0,1 nibble phase mismatch. Leave on stable 0,0.
+
+// Synchronization is complete:
+if (is4bitMode()) {           // If 4-bit interface:
+  writeRaw(0x20);             //   Set display to 4-bit interface.
+}
+```
+**Note:** `writeRaw()` is an internal PHY layer function that transfers a byte (8-bit mode) or upper nibble (4-bit mode) to the LCD controller, including the Enable strobe. Backend implementers do not need to implement this function; it is provided by `HD44780PHY`.
 
 ---
 
@@ -801,8 +877,8 @@ virtual void setRS(bool high) = 0;      // Control LCD Register Select signal.
 virtual void writeState() = 0;          // Set data bus direction to write mode.
 virtual void readState() = 0;           // Set data bus direction to read mode.
 
-virtual void writeBus(uint8_t val) = 0; // Write value to LCD data bus.
-virtual uint8_t readBus() = 0;          // Read current value from LCD data bus.
+virtual void writeBus(uint8_t val) = 0; // Write value to LCD data bus. In 4-bit mode only DB7..DB4 are transferred.
+virtual uint8_t readBus() = 0;          // Read current value from LCD data bus. In 4-bit mode only DB7..DB4 are used and DB3..DB0 must return as zero.
 ```
 
 These functions provide:
@@ -834,7 +910,7 @@ However, backends may override this function for faster direct busy polling.
 Optional display power control may also be implemented:
 
 ```cpp
-virtual void power(bool) { }
+virtual bool power(bool) { return true; }
 ```
 
 This hook is automatically called by:
@@ -844,6 +920,13 @@ This hook is automatically called by:
 
 allowing optional LCD power switching to integrate directly into the communication layer.
 
+The function returns:
+
+- `true` on success,
+- or `false` if power control fails.
+
+The default implementation simply returns `true`.
+
 ---
 
 ### HD44780PHY Provided Functions
@@ -851,21 +934,21 @@ allowing optional LCD power switching to integrate directly into the communicati
 After the hardware interface has been implemented, `HD44780PHY` provides:
 
 ```cpp
-bool enable();                          // Enable LCD communication and optional display power.
-void disable();                         // Disable LCD communication and optional display power.
+bool enable();                          // Enables display and turns power on.
+bool disable();                         // Disables display and turns power off.
 
 bool init();                            // Synchronize and initialize LCD controller.
 
-bool command(uint8_t value);            // Send command byte to LCD controller.
-bool writeData(uint8_t value);          // Write data byte to DDRAM or CGRAM.
+bool command(uint8_t value);            // Send command byte to LCD controller. Returns false on timeout or if not initialized.
+bool writeData(uint8_t value);          // Write data byte to DDRAM or CGRAM. Returns false on timeout or if not initialized.
 
-uint8_t readData();                     // Read data byte from DDRAM or CGRAM.
+uint8_t readData();                     // Read data byte from DDRAM or CGRAM. Returns 0xff at timeout or if not initialized.
 
-bool waitBusy();                        // Wait until busy flag clears.
+bool waitBusy();                        // Wait until busy flag clears. Returns false on timeout or if not initialized.
 bool readBusy();                        // Read current busy flag state.
 
 uint8_t readStatus();                   // Read current controller status byte.
-uint8_t readAC();                       // Wait for ready state and read address counter.
+uint8_t readAC();                       // Wait for ready state and read address counter. Returns 0xff at timeout or if not initialized.
 ```
 
 These functions provide:
@@ -921,10 +1004,10 @@ virtual bool writeData(uint8_t value) = 0;    // Write data byte to DDRAM or CGR
 
 virtual uint8_t readData() = 0;               // Read data byte from DDRAM or CGRAM.
 
-virtual bool enableLCD() = 0;                 // Enable LCD display and optional power control.
-virtual void disableLCD() = 0;                // Disable LCD display and optional power control.
+virtual bool enableLCD() = 0;                 // Enables LCD display and turns power on.
+virtual bool disableLCD() = 0;                // Disables LCD display and turns power off.
 
-virtual bool initLCD() = 0;                   // Synchronize and initialize LCD controller.
+virtual bool initLCD() = 0;                   // Initialize LCD bus/controller. Returns false on timeout or if not enabled.
 ```
 
 These functions bind the high-level LCD API to the lower-level PHY communication layer.
@@ -941,7 +1024,7 @@ Once the communication layer has been connected, `LiquidCrystalBase` provides th
 bool begin(uint8_t cols, uint8_t rows,
            uint8_t charsize = LCD_5x8DOTS);  // Configure, initialize and clear display.
 
-void end();                                  // Stop display and optional power control.
+void end();                                  // Stop display.
 ```
 
 #### Display Control
@@ -1048,8 +1131,8 @@ void HD44780PIN::setRS(bool rs) {            // Control LCD Register Select sign
 Similarly, bus transfers are implemented through:
 
 ```cpp
-void HD44780PIN::writeBus(uint8_t val);      // Write value to LCD data bus.
-uint8_t HD44780PIN::readBus();               // Read current value from LCD data bus.
+void HD44780PIN::writeBus(uint8_t val);      // Write value to LCD data bus. In 4-bit mode only DB7..DB4 are transferred.
+uint8_t HD44780PIN::readBus();               // Read current value from LCD data bus. In 4-bit mode only DB7..DB4 are used and DB3..DB0 must return as zero.
 ```
 
 This fully binds:
@@ -1079,15 +1162,15 @@ uint8_t StableLCD::readData() {              // Read data byte from DDRAM or CGR
   return lcd.readData();
 }
 
-bool StableLCD::enableLCD() {                // Enable LCD display and optional power control.
+bool StableLCD::enableLCD() {                // Enables LCD display and turns power on.
   return lcd.enable();
 }
 
-void StableLCD::disableLCD() {               // Disable LCD display and optional power control.
-  lcd.disable();
+bool StableLCD::disableLCD() {               // Disables LCD display and turns power off.
+  return lcd.disable();
 }
 
-bool StableLCD::initLCD() {                  // Synchronize and initialize LCD controller.
+bool StableLCD::initLCD() {                  // Initialize LCD bus/controller. Returns false on timeout or if not enabled.
   return lcd.init();
 }
 ```
@@ -1113,7 +1196,12 @@ Example:
 
 ```cpp
 StableLCD lcd(rs, rw, en, d4, d5, d6, d7);
+StableLCD lcd(rs, rw, en, d4, d5, d6, d7, pwr);
 ```
+
+The optional `pwr` parameter specifies an LCD power control pin.
+
+If omitted or set to `0`, the display is assumed to remain permanently powered.
 
 The constructor:
 
@@ -1268,6 +1356,8 @@ The PHY layer then automatically provides:
 
 Only the physical interface itself must be implemented.
 
+Optional hooks such as `readDB7()` and `power(bool)` may be overridden when a backend can provide faster busy polling or LCD power control.
+
 ---
 
 ## Reference Backend: HD44780PIN
@@ -1293,11 +1383,13 @@ void HD44780PIN::setRS(bool rs) {
 Similarly, the data bus interface is implemented through:
 
 ```cpp
-void HD44780PIN::writeBus(uint8_t val);      // Write value to LCD data bus.
-uint8_t HD44780PIN::readBus();               // Read current value from LCD data bus.
+void HD44780PIN::writeBus(uint8_t val);      // Write value to LCD data bus. In 4-bit mode only DB7..DB4 are transferred.
+uint8_t HD44780PIN::readBus();               // Read current value from LCD data bus. In 4-bit mode only DB7..DB4 are used and DB3..DB0 must return as zero.
 ```
 
 This backend therefore connects the generic synchronization-aware PHY layer directly to Arduino GPIO hardware.
+
+If a power control pin is configured, the backend also controls LCD power and waits for the upper data bus lines to become active after power-up.
 
 ---
 
@@ -1308,7 +1400,7 @@ Efficient busy polling is important for StableLCD performance.
 The PHY layer therefore supports an optional optimized `DB7` read function:
 
 ```cpp
-virtual bool readDB7()                       // Optional optimized DB7 read.
+virtual bool readDB7()                       // Read DB7 signal state. Backends may override for faster busy polling.
 ```
 
 When implemented, `readBusy()` may use this function directly instead of performing a complete status read.
@@ -1316,7 +1408,7 @@ When implemented, `readBusy()` may use this function directly instead of perform
 Example:
 
 ```cpp
-bool HD44780PIN::readDB7() {                 // Optional optimized DB7 read.
+bool HD44780PIN::readDB7() {                 // Optional optimized DB7 read. If not implemented readBus() bit 7 is used.
   return digitalRead(db_pin[7]);
 }
 ```
@@ -1363,16 +1455,54 @@ to the selected interface width.
 
 Optional LCD power control may also be integrated directly into the backend.
 
-Example:
+The PHY layer provides the optional power hook:
 
 ```cpp
-virtual void power(bool) override          // Optional display power control.
+virtual bool power(bool) { return true; }    // Allow optional LCD power.
 ```
 
 When implemented:
 
 - `enable()` automatically powers the display on,
 - and `disable()` automatically powers the display off.
+
+The default `HD44780PIN` backend supports an optional power control pin.
+
+Example implementation:
+
+```cpp
+bool HD44780PIN::power(bool on) {                               // Sets power pin high (on) or low (off).
+  if (pwr_pin == 0) return true;                                // Return true if power pin not present.
+  pinMode(pwr_pin, OUTPUT);                                     // Set power pin as output.
+  if (on) {                                                     // Check if on:
+    digitalWrite(pwr_pin, true);                                //   Turn power on.
+    readState();                                                //   Set data bus as INPUT_PULLUP and detect when power is on.
+    const uint32_t start = millis();                            //   Store start time for timeout.
+    while (readBus() < 0xF0) {                                  //   Wait until DB7..DB4 read high.
+      if ((millis() - start) > TIMEOUT_MS) return false;        //     Return false and exit on timeout.
+    }                                                           //   Now upper data bus is high.
+  } else {                                                      // Check if off:
+    digitalWrite(pwr_pin, false);                               //   Turn power off.
+  }
+  return true;                                                  // Return true if power switching succeeded.
+}
+```
+
+Before power-up, `enable()` configures the LCD control pins and data bus for a safe inactive state.
+
+The data bus is driven low while the display is powered off.
+
+After the power pin is switched on, `power(true)` changes the data bus to read mode. In the default `HD44780PIN` backend this means `INPUT_PULLUP`.
+
+The function then waits until the upper four data pins, `DB7..DB4`, read high.
+
+Only the upper four data bits are tested, so the same code works for both 4-bit and 8-bit LCD interfaces. `DB7` is the most important signal because it is the HD44780 busy flag.
+
+During LCD power-up the controller may initially leave the data bus floating or undefined. With input pullups enabled, the bus reads high until the LCD controller becomes active and can drive the busy flag low.
+
+This makes the LCD appear busy, or not yet ready, during power-up. The synchronization code can then wait for `DB7` to become low instead of falsely assuming that the controller is ready too early.
+
+The timeout prevents the application from blocking forever if the LCD does not power up correctly, the power control circuit fails, or the data bus never reaches a valid high level.
 
 This allows:
 
@@ -1847,6 +1977,16 @@ This can be useful for:
 - hard recovery after communication failure,
 - and systems where the LCD power supply is controlled by the MCU.
 
+The default `HD44780PIN` backend can monitor the upper LCD data bus lines after power-up before synchronization continues.
+
+Immediately after LCD power is enabled, the supply voltage may still be rising. During this period the LCD controller outputs may hold the data bus low or undefined, even though the enable signal is inactive.
+
+The backend therefore switches the LCD data bus to `INPUT_PULLUP` mode and waits until the upper data lines read high.
+
+All four upper data bits are tested for robustness and compatibility with both 4-bit and 8-bit interfaces, but `DB7` is the most important signal because it represents the HD44780 busy flag.
+
+Only after the upper bus reads high does synchronization continue.
+
 ---
 
 ## Signal Integrity
@@ -1929,7 +2069,7 @@ The following examples show common usage patterns.
 
 ---
 
-## DEMO1 - Basic Usage
+## DEMO1_Basic - Basic Usage
 
 Basic usage is intentionally simple and similar to traditional Arduino LCD libraries.
 
@@ -1960,7 +2100,7 @@ The library automatically performs:
 
 ---
 
-## DEMO2 - Verification Example
+## DEMO2_Verify - Verification Example
 
 Verification mode allows software to verify that expected data exists inside the LCD controller memory.
 
@@ -2005,7 +2145,7 @@ The verification state remains active until `verifyEnd()` is called.
 
 ---
 
-## DEMO3 - Runtime Recovery Example
+## DEMO3_AutoRecover - Runtime Recovery Example
 
 Verification may also be used during continuous runtime operation.
 
@@ -2058,6 +2198,62 @@ The delays are included only to make recovery behavior visible during demonstrat
 
 ---
 
+## DEMO4_PowerCycle - Power Cycle Verification Test
+
+DEMO4 demonstrates normal repeated LCD power cycling using the optional power control pin.
+
+The demo demonstrates:
+
+- optional LCD power control,
+- repeated LCD power cycling,
+- runtime verification,
+- initialization timing measurements,
+- display synchronization recovery,
+- and automated stress testing.
+
+The demo repeatedly:
+
+1. powers the LCD on,
+2. initializes and synchronizes the controller,
+3. writes changing test data,
+4. verifies LCD DDRAM contents using readback,
+5. powers the display off,
+6. and repeats continuously.
+
+Example serial output:
+
+```text
+Inittime = 8492. Totaltime = 13764. Verified OK = 327. Errors = 0
+```
+
+Example LCD output:
+
+```text
+n=720
+Verify ok
+```
+
+The demo continuously verifies that:
+
+- LCD initialization succeeds,
+- display memory contents are correct,
+- synchronization remains stable during repeated power cycling,
+- and display clear operations correctly restore trailing spaces after the displayed counter text.
+
+DEMO4 is intended for normal repeated power-cycle verification.
+
+---
+
+## DEMO5_SlowRiseTest - Slow-Rise Stress Test
+
+DEMO5_SlowRiseTest performs the same verification process as DEMO4 with optional extra settle delay for extremely slow LCD supply rise conditions.
+
+The example repeatedly retries `initClear()` during the configured settling interval before finally verifying the LCD contents.
+
+Long-duration testing with repeated slow-rise power cycles has completed without observed verification failures on the tested hardware configuration.
+
+---
+
 ## Runtime Reinitialization
 
 `initClear()` combines:
@@ -2082,14 +2278,15 @@ Because synchronization uses active busy polling rather than large fixed delays,
 If the backend implements:
 
 ```cpp
-virtual void power(bool)
+virtual bool power(bool)
 ```
 
 then display power control becomes integrated into the synchronization framework.
 
 ```cpp
-lcd.end();     // Disable LCD and optional power control.
-lcd.begin();   // Re-enable and synchronize display.
+lcd.end();        // Disable LCD and optional power control.
+delay(100);
+lcd.begin(16,2);  // Re-enable, synchronize and initialize display.
 ```
 
 This may be useful for:

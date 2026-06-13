@@ -39,18 +39,20 @@
 
 class StableLCD : public LiquidCrystalBase {
 public:                                             // Constructors, configuration only:
-  StableLCD(uint8_t rs,uint8_t rw,uint8_t ena,uint8_t d0,uint8_t d1,uint8_t d2,uint8_t d3,uint8_t d4,uint8_t d5,uint8_t d6,uint8_t d7)  //   Setup 8 bit display, R/W
-    :LiquidCrystalBase(false),lcd(rs,rw,ena,d0,d1,d2,d3,d4,d5,d6,d7) {}
-  StableLCD(uint8_t rs,uint8_t rw,uint8_t ena,uint8_t d0,uint8_t d1,uint8_t d2,uint8_t d3)                                              //   Setup 4 bit display, R/W
-    :LiquidCrystalBase(true),lcd(rs,rw,ena,d0,d1,d2,d3) {}
-protected:
+  StableLCD(uint8_t rs,uint8_t rw,uint8_t ena,uint8_t d0,uint8_t d1,uint8_t d2,uint8_t d3,uint8_t d4,uint8_t d5,uint8_t d6,uint8_t d7,uint8_t pwr=0)    //   Setup 8 bit display, R/W
+    :LiquidCrystalBase(false),lcd(rs,rw,ena,d0,d1,d2,d3,d4,d5,d6,d7,pwr) {}
+  StableLCD(uint8_t rs,uint8_t rw,uint8_t ena,uint8_t d0,uint8_t d1,uint8_t d2,uint8_t d3,uint8_t pwr=0)                                                //   Setup 4 bit display, R/W
+    :LiquidCrystalBase(true),lcd(rs,rw,ena,d0,d1,d2,d3,pwr) {}
+
   virtual bool command(uint8_t value ) override     { return lcd.command(value);      } // Send command byte to LCD controller. Returns false on timeout.
   virtual bool writeData(uint8_t value) override    { return lcd.writeData(value);    } // Write data byte to DDRAM or CGRAM. Returns false on timeout.
   virtual uint8_t readData() override               { return lcd.readData();          } // Read data byte from DDRAM or CGRAM. Returns 0xff on error.
-  virtual bool enableLCD() override                 { return lcd.enable();            } // Enables LCD display and turns power on.
-  virtual void disableLCD() override                { lcd.disable();                  } // Disables LCD display and turns power off.
-  virtual bool initLCD() override                   { return lcd.init();              } // Initialize LCD bus/controller. Returns false on timeout or if not enabled.
+
 private:
+  virtual bool enableLCD() override                 { return lcd.enable();            } // Enables LCD display and turns power on.
+  virtual bool disableLCD() override                { return lcd.disable();           } // Disables LCD display and turns power off.
+  virtual bool initLCD() override                   { return lcd.init();              } // Initialize LCD bus/controller. Returns false on timeout or if not enabled.
+
   HD44780PIN lcd;                                                                       // Include HD44780PIN with arduino GPIO interface.
 };
 

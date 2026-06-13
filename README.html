@@ -23,6 +23,7 @@
 <li><a href="#basic-example">Basic Example</a></li>
 <li><a href="#verify-example">Verify Example</a></li>
 <li><a href="#recovery-example">Recovery Example</a></li>
+<li><a href="#power-control-example">Power Control Example</a></li>
 </ul>
 </li>
 <li><a href="#background-and-motivation">Background and Motivation</a></li>
@@ -50,8 +51,9 @@
 <li><a href="#traditional-hd44780-initialization">Traditional HD44780 Initialization</a></li>
 <li><a href="#busy-flag-synchronization">Busy Flag Synchronization</a></li>
 <li><a href="#possible-db7-states">Possible DB7 States</a></li>
-<li><a href="#nibble-synchronization">Nibble Synchronization</a></li>
-<li><a href="#why-repeated-3×0x3-synchronization-is-used">Why Repeated 3×0x3 Synchronization Is Used</a></li>
+<li><a href="#the-nibble-latch-problem">The Nibble Latch Problem</a></li>
+<li><a href="#three-stable-synchronization-rounds">Three Stable Synchronization Rounds</a></li>
+<li><a href="#complete-synchronization-loop">Complete Synchronization Loop</a></li>
 <li><a href="#timeout-handling">Timeout Handling</a></li>
 <li><a href="#fast-initialization">Fast Initialization</a></li>
 <li><a href="#why-the-algorithm-matters">Why the Algorithm Matters</a></li>
@@ -113,9 +115,11 @@
 </li>
 <li><a href="#example-usage-patterns">Example Usage Patterns</a>
 <ul>
-<li><a href="#demo1---basic-usage">DEMO1 - Basic Usage</a></li>
-<li><a href="#demo2---verification-example">DEMO2 - Verification Example</a></li>
-<li><a href="#demo3---runtime-recovery-example">DEMO3 - Runtime Recovery Example</a></li>
+<li><a href="#demo1_basic---basic-usage">DEMO1_Basic - Basic Usage</a></li>
+<li><a href="#demo2_verify---verification-example">DEMO2_Verify - Verification Example</a></li>
+<li><a href="#demo3_autorecover---runtime-recovery-example">DEMO3_AutoRecover - Runtime Recovery Example</a></li>
+<li><a href="#demo4_powercycle---power-cycle-verification-test">DEMO4_PowerCycle - Power Cycle Verification Test</a></li>
+<li><a href="#demo5_slowrisetest---slow-rise-stress-test">DEMO5_SlowRiseTest - Slow-Rise Stress Test</a></li>
 <li><a href="#runtime-reinitialization">Runtime Reinitialization</a></li>
 <li><a href="#power-controlled-displays">Power Controlled Displays</a></li>
 <li><a href="#custom-backends">Custom Backends</a></li>
@@ -166,7 +170,7 @@
 <li>timeout handling,</li>
 <li>display verification,</li>
 <li>communication recovery,</li>
-<li>optional power management,</li>
+<li>optional LCD power control,</li>
 <li>and a robust initialization sequence capable of synchronizing with the LCD controller even when startup timing, controller state, or nibble alignment is unknown.</li>
 </ul>
 <p>Unlike traditional LCD libraries that blindly assume writes succeed, StableLCD can verify that expected data actually exists in display memory by reading data back from the LCD controller. <strong>This library requires the RW (Read/Write) pin to be connected</strong>, as it uses the pin for busy flag polling, display verification, and robust synchronization.</p>
@@ -258,11 +262,56 @@ lcd<span class="token punctuation">.</span><span class="token function">setCurso
   lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"StableLCD"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token punctuation">}</span>
 </code></pre>
-<p>For more severe communication failures, a full power-cycle recovery strategy may also be used:</p>
-<pre class=" language-cpp"><code class="prism  language-cpp">lcd<span class="token punctuation">.</span><span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-<span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">100</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-lcd<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">16</span><span class="token punctuation">,</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<hr>
+<h2 id="power-control-example">Power Control Example</h2>
+<p>StableLCD optionally supports LCD power switching through a dedicated power control pin.</p>
+<p>When a power pin is configured, the library automatically integrates LCD power sequencing into:</p>
+<ul>
+<li><code>begin()</code></li>
+<li><code>end()</code></li>
+<li><code>enable()</code></li>
+<li>and <code>disable()</code></li>
+</ul>
+<p>Example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">&lt;StableLCD.h&gt;</span></span>
+
+<span class="token keyword">const</span> <span class="token keyword">int</span> rs <span class="token operator">=</span> <span class="token number">6</span><span class="token punctuation">,</span> rw <span class="token operator">=</span> <span class="token number">7</span><span class="token punctuation">,</span> en <span class="token operator">=</span> <span class="token number">8</span><span class="token punctuation">;</span>
+<span class="token keyword">const</span> <span class="token keyword">int</span> d4 <span class="token operator">=</span> <span class="token number">9</span><span class="token punctuation">,</span> d5 <span class="token operator">=</span> <span class="token number">10</span><span class="token punctuation">,</span> d6 <span class="token operator">=</span> <span class="token number">11</span><span class="token punctuation">,</span> d7 <span class="token operator">=</span> <span class="token number">12</span><span class="token punctuation">;</span>
+<span class="token keyword">const</span> <span class="token keyword">int</span> pwr <span class="token operator">=</span> <span class="token number">5</span><span class="token punctuation">;</span>
+
+StableLCD <span class="token function">lcd</span><span class="token punctuation">(</span>rs<span class="token punctuation">,</span> rw<span class="token punctuation">,</span> en<span class="token punctuation">,</span> d4<span class="token punctuation">,</span> d5<span class="token punctuation">,</span> d6<span class="token punctuation">,</span> d7<span class="token punctuation">,</span> pwr<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">void</span> <span class="token function">setup</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  lcd<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">16</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  lcd<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"StableLCD"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> <span class="token function">loop</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">}</span>
 </code></pre>
+<p>If <code>pwr</code> is set to <code>0</code>, power control is disabled and the LCD is assumed to remain permanently powered.</p>
+<p>For severe communication failures, a full power-cycle recovery strategy may be used:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp">lcd<span class="token punctuation">.</span><span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>        <span class="token comment">// Optional power-off if power pin is configured.</span>
+<span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">100</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+lcd<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">16</span><span class="token punctuation">,</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">// Re-enable, synchronize and initialize display.</span>
+</code></pre>
+<p>Power control is fully optional and backward compatible with existing applications.</p>
+<p>For more about power control, refer to examples <code>DEMO4_PowerCycle</code> and <code>DEMO5_SlowRiseTest</code>.</p>
+<ul>
+<li>
+<p><code>DEMO4_PowerCycle</code></p>
+<ul>
+<li>Repeatedly power-cycles the LCD and verifies a displayed counter value after each cycle.</li>
+</ul>
+</li>
+<li>
+<p><code>DEMO5_SlowRiseTest</code></p>
+<ul>
+<li>Performs the same verification process but is for extremely slow LCD supply rise conditions.</li>
+<li>An additional settle-delay parameter is configured for unusually slow power rise behavior.</li>
+</ul>
+</li>
+</ul>
 <p>StableLCD has currently been tested primarily on AVR architecture using Arduino Nano boards, but the architecture is intended to remain portable across platforms supporting Arduino-compatible GPIO and timing functions.</p>
 <hr>
 <h1 id="background-and-motivation">Background and Motivation</h1>
@@ -299,6 +348,7 @@ lcd<span class="token punctuation">.</span><span class="token function">begin</s
 <li>recover synchronization,</li>
 <li>and verify display correctness during runtime.</li>
 </ul>
+<p>The synchronization and recovery mechanisms have been tested under repeated LCD power-cycle conditions.</p>
 <p>Timeout handling is integrated into the communication layer to prevent software from hanging indefinitely if the LCD controller stops responding.</p>
 <hr>
 <h2 id="display-verification">Display Verification</h2>
@@ -348,9 +398,9 @@ lcd<span class="token punctuation">.</span><span class="token function">verifyEn
 <span class="token punctuation">}</span>
 </code></pre>
 <p>For more severe failures:</p>
-<pre class=" language-cpp"><code class="prism  language-cpp">lcd<span class="token punctuation">.</span><span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<pre class=" language-cpp"><code class="prism  language-cpp">lcd<span class="token punctuation">.</span><span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>        <span class="token comment">// Optional power-off if power pin is configured.</span>
 <span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">100</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-lcd<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">16</span><span class="token punctuation">,</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+lcd<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">16</span><span class="token punctuation">,</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">// Re-enable, synchronize and initialize display.</span>
 </code></pre>
 <hr>
 <h2 id="layered-architecture">Layered Architecture</h2>
@@ -499,9 +549,11 @@ lcd<span class="token punctuation">.</span><span class="token function">begin</s
 <li>RS control,</li>
 <li>RW control,</li>
 <li>Enable control,</li>
+<li>optional LCD power control,</li>
 <li>bus direction switching,</li>
 <li>and physical data bus access.</li>
 </ul>
+<p>The optional power pin, when configured, is also handled by this backend.</p>
 <p>The current implementation has primarily been tested on AVR architecture using Arduino Nano boards.</p>
 <hr>
 <h2 id="liquidcrystalbase">LiquidCrystalBase</h2>
@@ -598,7 +650,7 @@ lcd<span class="token punctuation">.</span><span class="token function">begin</s
 <hr>
 <h2 id="traditional-hd44780-initialization">Traditional HD44780 Initialization</h2>
 <p>The classical HD44780 initialization sequence transmits the <code>0x3</code> synchronization command three times in order to force the controller toward 8-bit operation before optionally switching to 4-bit mode.</p>
-<p>This method is significantly more robust than relying only on power-on-reset defaults, because it attempts to synchronize with the controller regardless of its previous communication state.</p>
+<p>This method is significantly more robust than relying only on power-on-reset defaults because it attempts to synchronize with the controller regardless of its previous communication state.</p>
 <p>However, the traditional sequence still depends heavily on fixed timing delays.</p>
 <p>These delays must be long enough to handle:</p>
 <ul>
@@ -616,7 +668,7 @@ lcd<span class="token punctuation">.</span><span class="token function">begin</s
 <li>and the algorithm does not actively continue recovery if synchronization fails.</li>
 </ul>
 <p>StableLCD uses the same classical synchronization mechanism.</p>
-<p>However, instead of performing the sequence only once with fixed delays, the complete 3×<code>0x3</code> synchronization sequence is repeated as long as unstable busy-flag behavior is observed.</p>
+<p>However, instead of performing the sequence only once with fixed delays, the complete <code>3×0x3</code> synchronization sequence is repeated as long as unstable busy-flag behavior is observed.</p>
 <p>This allows synchronization recovery to continue until stable operation is reached.</p>
 <hr>
 <h2 id="busy-flag-synchronization">Busy Flag Synchronization</h2>
@@ -663,63 +715,84 @@ lcd<span class="token punctuation">.</span><span class="token function">begin</s
 <td>Busy is certainly inactive, phase still unknown</td>
 </tr>
 </tbody>
-</table><p>The important observation is that only <code>0,0</code> guarantees that the controller is no longer busy.</p>
+</table><p>The important observation is that <strong>only <code>0,0</code> guarantees that the controller is no longer busy.</strong></p>
 <p>However, even in the <code>0,0</code> case, nibble phase may still be unknown.</p>
 <hr>
-<h2 id="nibble-synchronization">Nibble Synchronization</h2>
-<p>In 4-bit mode, each byte transfer consists of:</p>
-<ol>
-<li>high nibble,</li>
-<li>followed by low nibble.</li>
-</ol>
-<p>If synchronization is lost, the software and controller may disagree about which nibble is currently being transferred.</p>
-<p>This creates a nibble-phase mismatch where:</p>
-<ul>
-<li>a low nibble may be interpreted as a high nibble,</li>
-<li>or a high nibble may be interpreted as a low nibble.</li>
-</ul>
-<p>The initialization algorithm therefore waits until the first observed <code>DB7=0</code> condition before immediately sampling <code>DB7</code> again.</p>
-<p>This leaves two practically relevant situations:</p>
+<h2 id="the-nibble-latch-problem">The Nibble Latch Problem</h2>
+<p>The HD44780 controller internally stores one nibble while waiting for the second nibble of a 4-bit transfer.</p>
+<p>This internal nibble latch may contain arbitrary leftover data from an incomplete transfer or undefined startup state.</p>
+<p>When the first synchronization sequence is transmitted, the controller may therefore combine the first <code>0x3</code> nibble with unknown previous latch contents. This may temporarily form an unintended garbage instruction that requires execution time. During this period the controller remains busy and ignores additional transfers.</p>
+<p>This means that the first successful <code>0,0</code> observation does not necessarily guarantee that 8-bit synchronization has been established.</p>
+<p>The first synchronization round may instead have been consumed by leftover nibble-latch state executing one random instruction.</p>
+<hr>
+<h2 id="three-stable-synchronization-rounds">Three Stable Synchronization Rounds</h2>
+<p>To solve the nibble-latch problem, StableLCD requires <strong>three consecutive stable <code>0,0</code> synchronization rounds</strong> before normal initialization continues. Each stable round guarantees that the busy flag has been observed inactive in at least two consecutive reads and is ready to accept a command.</p>
 
 <table>
 <thead>
 <tr>
-<th>Samples</th>
-<th>Meaning</th>
-<th>Action</th>
+<th>Stable round</th>
+<th>Purpose</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>0,0</code></td>
-<td>Controller is not busy. Phase may still be unknown.</td>
-<td>Send repeated 3×<code>0x3</code> synchronization sequence.</td>
+<td>1</td>
+<td>Absorbs any unknown previous nibble-latch state and might issue a random instruction or switch to 8-bit state for synchronization</td>
 </tr>
 <tr>
-<td><code>0,1</code></td>
-<td>Busy/phase uncertain.</td>
-<td>Send repeated 3×<code>0x3</code> synchronization sequence and continue synchronization loop.</td>
+<td>2</td>
+<td>Forces 8-bit operation to perform safe deterministic synchronization</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Confirms stable busy-flag behavior (two non-busy) before continuing initialization</td>
 </tr>
 </tbody>
-</table><p>The repeated 3×<code>0x3</code> synchronization sequence forces the controller toward 8-bit mode regardless of previous nibble alignment.</p>
-<p>Once stable 8-bit operation is reached, busy polling eventually stabilizes as either:</p>
+</table><p>If a <code>0,1</code> pattern is observed at any time, synchronization stability is considered uncertain and the stable-round counter is reset and <code>3×0x3</code> synchronization commands are sent.</p>
+<p>This ensures that:</p>
 <ul>
-<li><code>1,1</code> while busy,</li>
-<li>or <code>0,0</code> when no longer busy.</li>
+<li>leftover latch states do not cause false synchronization,</li>
+<li>the controller is forced into a known 8-bit synchronization state,</li>
+<li>and unstable phase behavior restarts synchronization recovery automatically.</li>
 </ul>
-<p>The synchronization loop therefore continues until stable <code>0,0</code> is reached.</p>
+<p>After synchronization completes:</p>
+<ul>
+<li>the controller is synchronized,</li>
+<li>the busy flag is known to be inactive,</li>
+<li>nibble-latch uncertainty has been resolved,</li>
+<li>and the controller may safely continue initialization.</li>
+</ul>
+<p>If 4-bit mode is used, the library then transmits the normal <code>0x20</code> transition command to enter 4-bit operation.</p>
 <hr>
-<h2 id="why-repeated-3×0x3-synchronization-is-used">Why Repeated 3×0x3 Synchronization Is Used</h2>
-<p>The repeated 3×<code>0x3</code> synchronization sequence is inherited from the traditional HD44780 initialization procedure.</p>
-<p>Its purpose is to repeatedly force the controller toward a known 8-bit command state regardless of previous synchronization loss.</p>
-<p>Repeated synchronization writes are important because:</p>
-<ul>
-<li>the controller may currently expect either a high nibble or low nibble,</li>
-<li>previous commands may have been incomplete,</li>
-<li>or communication may have stopped mid-transfer.</li>
-</ul>
-<p>By repeatedly transmitting the 3×<code>0x3</code> synchronization sequence, the software eventually forces the controller back into a predictable command interpretation state.</p>
-<p>StableLCD combines this classical synchronization technique with active busy polling.</p>
+<h2 id="complete-synchronization-loop">Complete Synchronization Loop</h2>
+<p>The synchronization loop can be summarized as:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp">uint8_t stable <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>           <span class="token comment">// Count stable 0,0 synchronization rounds.</span>
+<span class="token keyword">do</span> <span class="token punctuation">{</span>                          <span class="token comment">// Wait until not busy.</span>
+  <span class="token keyword">do</span> <span class="token punctuation">{</span>                        <span class="token comment">//   Loop until busy candidate is low.</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token function">millis</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">-</span>start<span class="token punctuation">)</span> <span class="token operator">&gt;</span> TIMEOUT_MS<span class="token punctuation">)</span> <span class="token keyword">return</span> <span class="token boolean">false</span><span class="token punctuation">;</span>  <span class="token comment">// Return false and exit on timeout.</span>
+  <span class="token punctuation">}</span> <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token function">readRawDB7</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>     <span class="token comment">//   Wait until DB7 candidate is low.</span>
+
+  <span class="token keyword">bool</span> second <span class="token operator">=</span> <span class="token function">readRawDB7</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">//   Read second DB7 candidate.</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>second<span class="token punctuation">)</span> <span class="token punctuation">{</span>               <span class="token comment">//   Possible 0,1 nibble phase mismatch:</span>
+    stable <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>               <span class="token comment">//     Restart stable synchronization counter.</span>
+  <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>                    <span class="token comment">//   Stable 0,0 observed:</span>
+    stable<span class="token operator">++</span><span class="token punctuation">;</span>                 <span class="token comment">//     Count one stable synchronization round.</span>
+  <span class="token punctuation">}</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>stable <span class="token operator">&lt;</span> <span class="token number">3</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>           <span class="token comment">//   More confirmation needed:</span>
+    <span class="token function">writeRaw</span><span class="token punctuation">(</span><span class="token number">0x30</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">writeRaw</span><span class="token punctuation">(</span><span class="token number">0x30</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token function">writeRaw</span><span class="token punctuation">(</span><span class="token number">0x30</span><span class="token punctuation">)</span><span class="token punctuation">;</span>           <span class="token comment">//   Force known 8-bit state: Sends raw 3 x 0x3 when 4-bit interface, or 3 x 0x30 at 8-bit interface.</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span> <span class="token keyword">while</span> <span class="token punctuation">(</span>stable <span class="token operator">&lt;</span> <span class="token number">3</span><span class="token punctuation">)</span><span class="token punctuation">;</span>         <span class="token comment">// Retry on 0,1 nibble phase mismatch. Leave on stable 0,0.</span>
+
+<span class="token comment">// Synchronization is complete:</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">is4bitMode</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>           <span class="token comment">// If 4-bit interface:</span>
+  <span class="token function">writeRaw</span><span class="token punctuation">(</span><span class="token number">0x20</span><span class="token punctuation">)</span><span class="token punctuation">;</span>             <span class="token comment">//   Set display to 4-bit interface.</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p><strong>Note:</strong> <code>writeRaw()</code> is an internal PHY layer function that transfers a byte (8-bit mode) or upper nibble (4-bit mode) to the LCD controller, including the Enable strobe. Backend implementers do not need to implement this function; it is provided by <code>HD44780PHY</code>.</p>
 <hr>
 <h2 id="timeout-handling">Timeout Handling</h2>
 <p>The initialization algorithm includes timeout protection.</p>
@@ -826,8 +899,8 @@ lcd<span class="token punctuation">.</span><span class="token function">begin</s
 <span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">writeState</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>          <span class="token comment">// Set data bus direction to write mode.</span>
 <span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">readState</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>           <span class="token comment">// Set data bus direction to read mode.</span>
 
-<span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">writeBus</span><span class="token punctuation">(</span>uint8_t val<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> <span class="token comment">// Write value to LCD data bus.</span>
-<span class="token keyword">virtual</span> uint8_t <span class="token function">readBus</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>          <span class="token comment">// Read current value from LCD data bus.</span>
+<span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">writeBus</span><span class="token punctuation">(</span>uint8_t val<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> <span class="token comment">// Write value to LCD data bus. In 4-bit mode only DB7..DB4 are transferred.</span>
+<span class="token keyword">virtual</span> uint8_t <span class="token function">readBus</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>          <span class="token comment">// Read current value from LCD data bus. In 4-bit mode only DB7..DB4 are used and DB3..DB0 must return as zero.</span>
 </code></pre>
 <p>These functions provide:</p>
 <ul>
@@ -847,7 +920,7 @@ lcd<span class="token punctuation">.</span><span class="token function">begin</s
 <p>The default implementation reads <code>DB7</code> through <code>readBus()</code>.</p>
 <p>However, backends may override this function for faster direct busy polling.</p>
 <p>Optional display power control may also be implemented:</p>
-<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">power</span><span class="token punctuation">(</span><span class="token keyword">bool</span><span class="token punctuation">)</span> <span class="token punctuation">{</span> <span class="token punctuation">}</span>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">power</span><span class="token punctuation">(</span><span class="token keyword">bool</span><span class="token punctuation">)</span> <span class="token punctuation">{</span> <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span> <span class="token punctuation">}</span>
 </code></pre>
 <p>This hook is automatically called by:</p>
 <ul>
@@ -855,24 +928,30 @@ lcd<span class="token punctuation">.</span><span class="token function">begin</s
 <li>and <code>disable()</code></li>
 </ul>
 <p>allowing optional LCD power switching to integrate directly into the communication layer.</p>
+<p>The function returns:</p>
+<ul>
+<li><code>true</code> on success,</li>
+<li>or <code>false</code> if power control fails.</li>
+</ul>
+<p>The default implementation simply returns <code>true</code>.</p>
 <hr>
 <h3 id="hd44780phy-provided-functions">HD44780PHY Provided Functions</h3>
 <p>After the hardware interface has been implemented, <code>HD44780PHY</code> provides:</p>
-<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">bool</span> <span class="token function">enable</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                          <span class="token comment">// Enable LCD communication and optional display power.</span>
-<span class="token keyword">void</span> <span class="token function">disable</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                         <span class="token comment">// Disable LCD communication and optional display power.</span>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">bool</span> <span class="token function">enable</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                          <span class="token comment">// Enables display and turns power on.</span>
+<span class="token keyword">bool</span> <span class="token function">disable</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                         <span class="token comment">// Disables display and turns power off.</span>
 
 <span class="token keyword">bool</span> <span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                            <span class="token comment">// Synchronize and initialize LCD controller.</span>
 
-<span class="token keyword">bool</span> <span class="token function">command</span><span class="token punctuation">(</span>uint8_t value<span class="token punctuation">)</span><span class="token punctuation">;</span>            <span class="token comment">// Send command byte to LCD controller.</span>
-<span class="token keyword">bool</span> <span class="token function">writeData</span><span class="token punctuation">(</span>uint8_t value<span class="token punctuation">)</span><span class="token punctuation">;</span>          <span class="token comment">// Write data byte to DDRAM or CGRAM.</span>
+<span class="token keyword">bool</span> <span class="token function">command</span><span class="token punctuation">(</span>uint8_t value<span class="token punctuation">)</span><span class="token punctuation">;</span>            <span class="token comment">// Send command byte to LCD controller. Returns false on timeout or if not initialized.</span>
+<span class="token keyword">bool</span> <span class="token function">writeData</span><span class="token punctuation">(</span>uint8_t value<span class="token punctuation">)</span><span class="token punctuation">;</span>          <span class="token comment">// Write data byte to DDRAM or CGRAM. Returns false on timeout or if not initialized.</span>
 
-uint8_t <span class="token function">readData</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                     <span class="token comment">// Read data byte from DDRAM or CGRAM.</span>
+uint8_t <span class="token function">readData</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                     <span class="token comment">// Read data byte from DDRAM or CGRAM. Returns 0xff at timeout or if not initialized.</span>
 
-<span class="token keyword">bool</span> <span class="token function">waitBusy</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                        <span class="token comment">// Wait until busy flag clears.</span>
+<span class="token keyword">bool</span> <span class="token function">waitBusy</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                        <span class="token comment">// Wait until busy flag clears. Returns false on timeout or if not initialized.</span>
 <span class="token keyword">bool</span> <span class="token function">readBusy</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                        <span class="token comment">// Read current busy flag state.</span>
 
 uint8_t <span class="token function">readStatus</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                   <span class="token comment">// Read current controller status byte.</span>
-uint8_t <span class="token function">readAC</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                       <span class="token comment">// Wait for ready state and read address counter.</span>
+uint8_t <span class="token function">readAC</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                       <span class="token comment">// Wait for ready state and read address counter. Returns 0xff at timeout or if not initialized.</span>
 </code></pre>
 <p>These functions provide:</p>
 <ul>
@@ -912,10 +991,10 @@ uint8_t <span class="token function">readAC</span><span class="token punctuation
 
 <span class="token keyword">virtual</span> uint8_t <span class="token function">readData</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>               <span class="token comment">// Read data byte from DDRAM or CGRAM.</span>
 
-<span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">enableLCD</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>                 <span class="token comment">// Enable LCD display and optional power control.</span>
-<span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">disableLCD</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>                <span class="token comment">// Disable LCD display and optional power control.</span>
+<span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">enableLCD</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>                 <span class="token comment">// Enables LCD display and turns power on.</span>
+<span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">disableLCD</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>                <span class="token comment">// Disables LCD display and turns power off.</span>
 
-<span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">initLCD</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>                   <span class="token comment">// Synchronize and initialize LCD controller.</span>
+<span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">initLCD</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>                   <span class="token comment">// Initialize LCD bus/controller. Returns false on timeout or if not enabled.</span>
 </code></pre>
 <p>These functions bind the high-level LCD API to the lower-level PHY communication layer.</p>
 <hr>
@@ -925,7 +1004,7 @@ uint8_t <span class="token function">readAC</span><span class="token punctuation
 <pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">bool</span> <span class="token function">begin</span><span class="token punctuation">(</span>uint8_t cols<span class="token punctuation">,</span> uint8_t rows<span class="token punctuation">,</span>
            uint8_t charsize <span class="token operator">=</span> LCD_5x8DOTS<span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">// Configure, initialize and clear display.</span>
 
-<span class="token keyword">void</span> <span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                  <span class="token comment">// Stop display and optional power control.</span>
+<span class="token keyword">void</span> <span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                  <span class="token comment">// Stop display.</span>
 </code></pre>
 <h4 id="display-control">Display Control</h4>
 <pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">bool</span> <span class="token function">noDisplay</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                            <span class="token comment">// Turn display off without clearing memory.</span>
@@ -1005,8 +1084,8 @@ uint8_t <span class="token function">readAC</span><span class="token punctuation
 <span class="token punctuation">}</span>
 </code></pre>
 <p>Similarly, bus transfers are implemented through:</p>
-<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">void</span> HD44780PIN<span class="token operator">::</span><span class="token function">writeBus</span><span class="token punctuation">(</span>uint8_t val<span class="token punctuation">)</span><span class="token punctuation">;</span>      <span class="token comment">// Write value to LCD data bus.</span>
-uint8_t HD44780PIN<span class="token operator">::</span><span class="token function">readBus</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>               <span class="token comment">// Read current value from LCD data bus.</span>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">void</span> HD44780PIN<span class="token operator">::</span><span class="token function">writeBus</span><span class="token punctuation">(</span>uint8_t val<span class="token punctuation">)</span><span class="token punctuation">;</span>      <span class="token comment">// Write value to LCD data bus. In 4-bit mode only DB7..DB4 are transferred.</span>
+uint8_t HD44780PIN<span class="token operator">::</span><span class="token function">readBus</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>               <span class="token comment">// Read current value from LCD data bus. In 4-bit mode only DB7..DB4 are used and DB3..DB0 must return as zero.</span>
 </code></pre>
 <p>This fully binds:</p>
 <ul>
@@ -1030,15 +1109,15 @@ uint8_t StableLCD<span class="token operator">::</span><span class="token functi
   <span class="token keyword">return</span> lcd<span class="token punctuation">.</span><span class="token function">readData</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token punctuation">}</span>
 
-<span class="token keyword">bool</span> StableLCD<span class="token operator">::</span><span class="token function">enableLCD</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                <span class="token comment">// Enable LCD display and optional power control.</span>
+<span class="token keyword">bool</span> StableLCD<span class="token operator">::</span><span class="token function">enableLCD</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                <span class="token comment">// Enables LCD display and turns power on.</span>
   <span class="token keyword">return</span> lcd<span class="token punctuation">.</span><span class="token function">enable</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token punctuation">}</span>
 
-<span class="token keyword">void</span> StableLCD<span class="token operator">::</span><span class="token function">disableLCD</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>               <span class="token comment">// Disable LCD display and optional power control.</span>
-  lcd<span class="token punctuation">.</span><span class="token function">disable</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">bool</span> StableLCD<span class="token operator">::</span><span class="token function">disableLCD</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>               <span class="token comment">// Disables LCD display and turns power off.</span>
+  <span class="token keyword">return</span> lcd<span class="token punctuation">.</span><span class="token function">disable</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token punctuation">}</span>
 
-<span class="token keyword">bool</span> StableLCD<span class="token operator">::</span><span class="token function">initLCD</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                  <span class="token comment">// Synchronize and initialize LCD controller.</span>
+<span class="token keyword">bool</span> StableLCD<span class="token operator">::</span><span class="token function">initLCD</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                  <span class="token comment">// Initialize LCD bus/controller. Returns false on timeout or if not enabled.</span>
   <span class="token keyword">return</span> lcd<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token punctuation">}</span>
 </code></pre>
@@ -1058,7 +1137,10 @@ uint8_t StableLCD<span class="token operator">::</span><span class="token functi
 <p>Constructors are configuration only.</p>
 <p>Example:</p>
 <pre class=" language-cpp"><code class="prism  language-cpp">StableLCD <span class="token function">lcd</span><span class="token punctuation">(</span>rs<span class="token punctuation">,</span> rw<span class="token punctuation">,</span> en<span class="token punctuation">,</span> d4<span class="token punctuation">,</span> d5<span class="token punctuation">,</span> d6<span class="token punctuation">,</span> d7<span class="token punctuation">)</span><span class="token punctuation">;</span>
+StableLCD <span class="token function">lcd</span><span class="token punctuation">(</span>rs<span class="token punctuation">,</span> rw<span class="token punctuation">,</span> en<span class="token punctuation">,</span> d4<span class="token punctuation">,</span> d5<span class="token punctuation">,</span> d6<span class="token punctuation">,</span> d7<span class="token punctuation">,</span> pwr<span class="token punctuation">)</span><span class="token punctuation">;</span>
 </code></pre>
+<p>The optional <code>pwr</code> parameter specifies an LCD power control pin.</p>
+<p>If omitted or set to <code>0</code>, the display is assumed to remain permanently powered.</p>
 <p>The constructor:</p>
 <ul>
 <li>stores pin configuration,</li>
@@ -1187,6 +1269,7 @@ uint8_t StableLCD<span class="token operator">::</span><span class="token functi
 <li>and command sequencing.</li>
 </ul>
 <p>Only the physical interface itself must be implemented.</p>
+<p>Optional hooks such as <code>readDB7()</code> and <code>power(bool)</code> may be overridden when a backend can provide faster busy polling or LCD power control.</p>
 <hr>
 <h2 id="reference-backend-hd44780pin">Reference Backend: HD44780PIN</h2>
 <p><code>HD44780PIN</code> is the default Arduino GPIO backend included with StableLCD.</p>
@@ -1204,19 +1287,20 @@ uint8_t StableLCD<span class="token operator">::</span><span class="token functi
 <span class="token punctuation">}</span>
 </code></pre>
 <p>Similarly, the data bus interface is implemented through:</p>
-<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">void</span> HD44780PIN<span class="token operator">::</span><span class="token function">writeBus</span><span class="token punctuation">(</span>uint8_t val<span class="token punctuation">)</span><span class="token punctuation">;</span>      <span class="token comment">// Write value to LCD data bus.</span>
-uint8_t HD44780PIN<span class="token operator">::</span><span class="token function">readBus</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>               <span class="token comment">// Read current value from LCD data bus.</span>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">void</span> HD44780PIN<span class="token operator">::</span><span class="token function">writeBus</span><span class="token punctuation">(</span>uint8_t val<span class="token punctuation">)</span><span class="token punctuation">;</span>      <span class="token comment">// Write value to LCD data bus. In 4-bit mode only DB7..DB4 are transferred.</span>
+uint8_t HD44780PIN<span class="token operator">::</span><span class="token function">readBus</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>               <span class="token comment">// Read current value from LCD data bus. In 4-bit mode only DB7..DB4 are used and DB3..DB0 must return as zero.</span>
 </code></pre>
 <p>This backend therefore connects the generic synchronization-aware PHY layer directly to Arduino GPIO hardware.</p>
+<p>If a power control pin is configured, the backend also controls LCD power and waits for the upper data bus lines to become active after power-up.</p>
 <hr>
 <h2 id="fast-busy-polling">Fast Busy Polling</h2>
 <p>Efficient busy polling is important for StableLCD performance.</p>
 <p>The PHY layer therefore supports an optional optimized <code>DB7</code> read function:</p>
-<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">readDB7</span><span class="token punctuation">(</span><span class="token punctuation">)</span>                       <span class="token comment">// Optional optimized DB7 read.</span>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">readDB7</span><span class="token punctuation">(</span><span class="token punctuation">)</span>                       <span class="token comment">// Read DB7 signal state. Backends may override for faster busy polling.</span>
 </code></pre>
 <p>When implemented, <code>readBusy()</code> may use this function directly instead of performing a complete status read.</p>
 <p>Example:</p>
-<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">bool</span> HD44780PIN<span class="token operator">::</span><span class="token function">readDB7</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                 <span class="token comment">// Optional optimized DB7 read.</span>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">bool</span> HD44780PIN<span class="token operator">::</span><span class="token function">readDB7</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                 <span class="token comment">// Optional optimized DB7 read. If not implemented readBus() bit 7 is used.</span>
   <span class="token keyword">return</span> <span class="token function">digitalRead</span><span class="token punctuation">(</span>db_pin<span class="token punctuation">[</span><span class="token number">7</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token punctuation">}</span>
 </code></pre>
@@ -1253,14 +1337,40 @@ uint8_t HD44780PIN<span class="token operator">::</span><span class="token funct
 <hr>
 <h2 id="runtime-power-control">Runtime Power Control</h2>
 <p>Optional LCD power control may also be integrated directly into the backend.</p>
-<p>Example:</p>
-<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">power</span><span class="token punctuation">(</span><span class="token keyword">bool</span><span class="token punctuation">)</span> override          <span class="token comment">// Optional display power control.</span>
+<p>The PHY layer provides the optional power hook:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">power</span><span class="token punctuation">(</span><span class="token keyword">bool</span><span class="token punctuation">)</span> <span class="token punctuation">{</span> <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span> <span class="token punctuation">}</span>    <span class="token comment">// Allow optional LCD power.</span>
 </code></pre>
 <p>When implemented:</p>
 <ul>
 <li><code>enable()</code> automatically powers the display on,</li>
 <li>and <code>disable()</code> automatically powers the display off.</li>
 </ul>
+<p>The default <code>HD44780PIN</code> backend supports an optional power control pin.</p>
+<p>Example implementation:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">bool</span> HD44780PIN<span class="token operator">::</span><span class="token function">power</span><span class="token punctuation">(</span><span class="token keyword">bool</span> on<span class="token punctuation">)</span> <span class="token punctuation">{</span>                               <span class="token comment">// Sets power pin high (on) or low (off).</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>pwr_pin <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span>                                <span class="token comment">// Return true if power pin not present.</span>
+  <span class="token function">pinMode</span><span class="token punctuation">(</span>pwr_pin<span class="token punctuation">,</span> OUTPUT<span class="token punctuation">)</span><span class="token punctuation">;</span>                                     <span class="token comment">// Set power pin as output.</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>on<span class="token punctuation">)</span> <span class="token punctuation">{</span>                                                     <span class="token comment">// Check if on:</span>
+    <span class="token function">digitalWrite</span><span class="token punctuation">(</span>pwr_pin<span class="token punctuation">,</span> <span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                <span class="token comment">//   Turn power on.</span>
+    <span class="token function">readState</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                                <span class="token comment">//   Set data bus as INPUT_PULLUP and detect when power is on.</span>
+    <span class="token keyword">const</span> uint32_t start <span class="token operator">=</span> <span class="token function">millis</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                            <span class="token comment">//   Store start time for timeout.</span>
+    <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token function">readBus</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">&lt;</span> <span class="token number">0xF0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                  <span class="token comment">//   Wait until DB7..DB4 read high.</span>
+      <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token function">millis</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">-</span> start<span class="token punctuation">)</span> <span class="token operator">&gt;</span> TIMEOUT_MS<span class="token punctuation">)</span> <span class="token keyword">return</span> <span class="token boolean">false</span><span class="token punctuation">;</span>        <span class="token comment">//     Return false and exit on timeout.</span>
+    <span class="token punctuation">}</span>                                                           <span class="token comment">//   Now upper data bus is high.</span>
+  <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>                                                      <span class="token comment">// Check if off:</span>
+    <span class="token function">digitalWrite</span><span class="token punctuation">(</span>pwr_pin<span class="token punctuation">,</span> <span class="token boolean">false</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                               <span class="token comment">//   Turn power off.</span>
+  <span class="token punctuation">}</span>
+  <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span>                                                  <span class="token comment">// Return true if power switching succeeded.</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p>Before power-up, <code>enable()</code> configures the LCD control pins and data bus for a safe inactive state.</p>
+<p>The data bus is driven low while the display is powered off.</p>
+<p>After the power pin is switched on, <code>power(true)</code> changes the data bus to read mode. In the default <code>HD44780PIN</code> backend this means <code>INPUT_PULLUP</code>.</p>
+<p>The function then waits until the upper four data pins, <code>DB7..DB4</code>, read high.</p>
+<p>Only the upper four data bits are tested, so the same code works for both 4-bit and 8-bit LCD interfaces. <code>DB7</code> is the most important signal because it is the HD44780 busy flag.</p>
+<p>During LCD power-up the controller may initially leave the data bus floating or undefined. With input pullups enabled, the bus reads high until the LCD controller becomes active and can drive the busy flag low.</p>
+<p>This makes the LCD appear busy, or not yet ready, during power-up. The synchronization code can then wait for <code>DB7</code> to become low instead of falsely assuming that the controller is ready too early.</p>
+<p>The timeout prevents the application from blocking forever if the LCD does not power up correctly, the power control circuit fails, or the data bus never reaches a valid high level.</p>
 <p>This allows:</p>
 <ul>
 <li>hard controller resets,</li>
@@ -1620,6 +1730,11 @@ lcd<span class="token punctuation">.</span><span class="token function">verifyEn
 <li>hard recovery after communication failure,</li>
 <li>and systems where the LCD power supply is controlled by the MCU.</li>
 </ul>
+<p>The default <code>HD44780PIN</code> backend can monitor the upper LCD data bus lines after power-up before synchronization continues.</p>
+<p>Immediately after LCD power is enabled, the supply voltage may still be rising. During this period the LCD controller outputs may hold the data bus low or undefined, even though the enable signal is inactive.</p>
+<p>The backend therefore switches the LCD data bus to <code>INPUT_PULLUP</code> mode and waits until the upper data lines read high.</p>
+<p>All four upper data bits are tested for robustness and compatibility with both 4-bit and 8-bit interfaces, but <code>DB7</code> is the most important signal because it represents the HD44780 busy flag.</p>
+<p>Only after the upper bus reads high does synchronization continue.</p>
 <hr>
 <h2 id="signal-integrity">Signal Integrity</h2>
 <p>HD44780 parallel buses are usually simple and reliable at short distances.</p>
@@ -1680,7 +1795,7 @@ lcd<span class="token punctuation">.</span><span class="token function">verifyEn
 </ul>
 <p>The following examples show common usage patterns.</p>
 <hr>
-<h2 id="demo1---basic-usage">DEMO1 - Basic Usage</h2>
+<h2 id="demo1_basic---basic-usage">DEMO1_Basic - Basic Usage</h2>
 <p>Basic usage is intentionally simple and similar to traditional Arduino LCD libraries.</p>
 <pre class=" language-cpp"><code class="prism  language-cpp"><span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">&lt;StableLCD.h&gt;</span>          </span><span class="token comment">// Include the library code</span>
 
@@ -1706,7 +1821,7 @@ StableLCD <span class="token function">lcd</span><span class="token punctuation"
 <li>and timeout handling.</li>
 </ul>
 <hr>
-<h2 id="demo2---verification-example">DEMO2 - Verification Example</h2>
+<h2 id="demo2_verify---verification-example">DEMO2_Verify - Verification Example</h2>
 <p>Verification mode allows software to verify that expected data exists inside the LCD controller memory.</p>
 <pre class=" language-cpp"><code class="prism  language-cpp"><span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">&lt;StableLCD.h&gt;</span>          </span><span class="token comment">// Include the library code</span>
 
@@ -1745,7 +1860,7 @@ StableLCD <span class="token function">lcd</span><span class="token punctuation"
 <li>or false if any verification mismatch or timeout occurred.</li>
 </ul>
 <hr>
-<h2 id="demo3---runtime-recovery-example">DEMO3 - Runtime Recovery Example</h2>
+<h2 id="demo3_autorecover---runtime-recovery-example">DEMO3_AutoRecover - Runtime Recovery Example</h2>
 <p>Verification may also be used during continuous runtime operation.</p>
 <pre class=" language-cpp"><code class="prism  language-cpp"><span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">&lt;StableLCD.h&gt;</span>          </span><span class="token comment">// Include the library code</span>
 
@@ -1792,6 +1907,47 @@ StableLCD <span class="token function">lcd</span><span class="token punctuation"
 </ul>
 <p>The delays are included only to make recovery behavior visible during demonstration.</p>
 <hr>
+<h2 id="demo4_powercycle---power-cycle-verification-test">DEMO4_PowerCycle - Power Cycle Verification Test</h2>
+<p>DEMO4 demonstrates normal repeated LCD power cycling using the optional power control pin.</p>
+<p>The demo demonstrates:</p>
+<ul>
+<li>optional LCD power control,</li>
+<li>repeated LCD power cycling,</li>
+<li>runtime verification,</li>
+<li>initialization timing measurements,</li>
+<li>display synchronization recovery,</li>
+<li>and automated stress testing.</li>
+</ul>
+<p>The demo repeatedly:</p>
+<ol>
+<li>powers the LCD on,</li>
+<li>initializes and synchronizes the controller,</li>
+<li>writes changing test data,</li>
+<li>verifies LCD DDRAM contents using readback,</li>
+<li>powers the display off,</li>
+<li>and repeats continuously.</li>
+</ol>
+<p>Example serial output:</p>
+<pre class=" language-text"><code class="prism  language-text">Inittime = 8492. Totaltime = 13764. Verified OK = 327. Errors = 0
+</code></pre>
+<p>Example LCD output:</p>
+<pre class=" language-text"><code class="prism  language-text">n=720
+Verify ok
+</code></pre>
+<p>The demo continuously verifies that:</p>
+<ul>
+<li>LCD initialization succeeds,</li>
+<li>display memory contents are correct,</li>
+<li>synchronization remains stable during repeated power cycling,</li>
+<li>and display clear operations correctly restore trailing spaces after the displayed counter text.</li>
+</ul>
+<p>DEMO4 is intended for normal repeated power-cycle verification.</p>
+<hr>
+<h2 id="demo5_slowrisetest---slow-rise-stress-test">DEMO5_SlowRiseTest - Slow-Rise Stress Test</h2>
+<p>DEMO5_SlowRiseTest performs the same verification process as DEMO4 with optional extra settle delay for extremely slow LCD supply rise conditions.</p>
+<p>The example repeatedly retries <code>initClear()</code> during the configured settling interval before finally verifying the LCD contents.</p>
+<p>Long-duration testing with repeated slow-rise power cycles has completed without observed verification failures on the tested hardware configuration.</p>
+<hr>
 <h2 id="runtime-reinitialization">Runtime Reinitialization</h2>
 <p><code>initClear()</code> combines:</p>
 <ul>
@@ -1807,11 +1963,12 @@ lcd<span class="token punctuation">.</span><span class="token function">print</s
 <hr>
 <h2 id="power-controlled-displays">Power Controlled Displays</h2>
 <p>If the backend implements:</p>
-<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">void</span> <span class="token function">power</span><span class="token punctuation">(</span><span class="token keyword">bool</span><span class="token punctuation">)</span>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">virtual</span> <span class="token keyword">bool</span> <span class="token function">power</span><span class="token punctuation">(</span><span class="token keyword">bool</span><span class="token punctuation">)</span>
 </code></pre>
 <p>then display power control becomes integrated into the synchronization framework.</p>
-<pre class=" language-cpp"><code class="prism  language-cpp">lcd<span class="token punctuation">.</span><span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>     <span class="token comment">// Disable LCD and optional power control.</span>
-lcd<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">// Re-enable and synchronize display.</span>
+<pre class=" language-cpp"><code class="prism  language-cpp">lcd<span class="token punctuation">.</span><span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>        <span class="token comment">// Disable LCD and optional power control.</span>
+<span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">100</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+lcd<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">16</span><span class="token punctuation">,</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">// Re-enable, synchronize and initialize display.</span>
 </code></pre>
 <p>This may be useful for:</p>
 <ul>
