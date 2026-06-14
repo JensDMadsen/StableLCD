@@ -5,6 +5,8 @@
 
 - [Introduction](#introduction)
 - [Background and Motivation](#background-and-motivation)
+- [Reading Display Memory](#reading-display-memory)
+- [Position and Address Functions](#position-and-address-functions)
 - [Design Goals](#design-goals)
 - [Architecture](#architecture)
 - [Robust Initialization Algorithm](#robust-initialization-algorithm)
@@ -204,6 +206,208 @@ The synchronization algorithm in this library is, to my knowledge, the first pub
 The name "StableLCD" reflects the goal: a display driver that doesn't just work most of the time, but works *reliably* - even when things go wrong. Runtime verification, automatic recovery, and active synchronization aren't just features; they're the foundation.
 
 I hope this library saves you hours of debugging flaky displays, and perhaps inspires a more robust approach to embedded communication in general.
+
+---
+# Reading Display Memory
+
+Unlike most traditional HD44780 libraries, StableLCD supports reading text and address information directly back from the LCD controller.
+
+This allows applications to:
+
+- verify displayed text,
+- parse display contents,
+- inspect cursor and address state,
+- and build synchronized runtime verification or recovery systems.
+
+The read functions operate on the same logical row/column model used by `setCursor()` and the normal Arduino-compatible API.
+
+This means applications can work with logical display positions without needing to handle the internal HD44780 DDRAM layout directly.
+
+The following sections describe the available position, address, and text read functions.
+
+The library includes the example `DEMO6_ReadFunctions`, which demonstrates:
+
+- Position and address functions
+- Reading complete lines
+- Token parsing using `read()`
+- `readUntil()` with custom terminators
+- Multiple separator handling
+- Save/restore of DDRAM addresses
+
+The example also demonstrates the logical display model and the relationship between logical cursor positions and raw HD44780 DDRAM addresses.
+
+---
+
+## Reading Display Text
+
+StableLCD supports reading text directly from the HD44780 DDRAM using logical row/column addressing.
+
+```cpp
+// Read one token, able to choose separator character.
+size_t read(char *buf, size_t size,
+                char separator,
+                bool trimLeft=true,
+                bool trimRight=true);
+
+// Read one token, allows custom separators.
+size_t read(char *buf, size_t size,
+                const char *separators=" ",
+                bool trimLeft=true,
+                bool trimRight=true);
+
+// Read line, trim trailing spaces as standard.
+size_t readLine(char *buf, size_t size,
+                bool trimLeft=false,
+                bool trimRight=true);
+
+// Read from cursor to *buf until terminator char or EOL.
+size_t readUntil(char *buf, size_t size,
+                char term,
+                bool trimLeft=false,
+                bool trimRight=false);
+
+// Read from cursor to *buf until any terminator or EOL.
+size_t readUntil(char *buf, size_t size,
+                const char *termstr="",
+                bool trimLeft=false,
+                bool trimRight=false);
+```
+
+All functions:
+
+- Read from the current cursor position.
+- Advance the HD44780 address counter during reading.
+- Always zero-terminate the destination buffer.
+- Stop at end-of-line (logical display line).
+- Return the number of stored characters.
+
+## read()
+
+Reads one token using custom separators.
+
+- Leading spaces are skipped by default.
+- Trailing spaces are removed by default.
+- Reading stops at the first separator or end-of-line.
+
+Example:
+
+```cpp
+char buf[17];
+
+lcd.setCursor(0,1);
+
+lcd.read(buf,sizeof(buf));   // Reads first word.
+Serial.println(buf);
+
+lcd.read(buf,sizeof(buf));   // Reads next word.
+Serial.println(buf);
+```
+
+## readLine()
+
+Reads the remaining logical line.
+
+- Trailing spaces are removed by default.
+- Leading spaces may optionally be removed.
+
+Example:
+
+```cpp
+char buf[17];
+
+lcd.setCursor(0,0);
+lcd.readLine(buf,sizeof(buf));
+
+Serial.println(buf);
+```
+
+## readUntil()
+
+Reads until:
+
+- a terminator character,
+- any terminator in a terminator string,
+- or end-of-line.
+
+Example:
+
+```cpp
+char buf[17];
+
+lcd.setCursor(0,0);
+
+lcd.readUntil(buf,sizeof(buf),'=');
+Serial.println(buf);
+
+lcd.readUntil(buf,sizeof(buf)," ,;");
+Serial.println(buf);
+```
+
+---
+# Position and Address Functions
+
+These functions provide access to the logical display geometry and the HD44780 DDRAM address counter.
+
+The functions use the logical display model and do not compensate for display shift or scroll operations (`scrollDisplayLeft()` / `scrollDisplayRight()`).
+
+`getLine()` and `getPos()` operate on the configured logical row layout (`setRowOffsets()`), not on shifted/scrolled display positions.
+
+The logical model matches the addressing used by `setCursor()`.
+
+```cpp
+uint8_t getCols();      // Return logical number of columns.
+uint8_t getRows();      // Return logical number of rows.
+uint8_t getPos();       // Return logical column from current DDRAM address.
+uint8_t getLine();      // Return logical row from current DDRAM address.
+
+bool setAddress(uint8_t address);   // Set raw address counter.
+uint8_t getAddress();   // Read raw address counter (AC). Returns 0xff at timeout or if not initialized.
+```
+
+These helper functions provide access to the logical display geometry and the HD44780 DDRAM address counter.
+
+## getCols()
+
+Returns the logical number of columns configured by `begin()` and `setRowOffsets()`.
+
+## getRows()
+
+Returns the logical number of rows configured by `begin()`.
+
+## getPos()
+
+Returns the logical column position from the current DDRAM address.
+
+Returns `0xff` if the current position cannot be resolved.
+
+## getLine()
+
+Returns the logical row from the current DDRAM address.
+
+Returns `0xff` if the current row cannot be resolved.
+
+## getAddress()
+
+Returns the raw HD44780 DDRAM address counter (AC).
+
+Returns `0xff` at timeout or if the display is not initialized.
+
+## setAddress()
+
+Sets the raw HD44780 DDRAM address counter.
+
+Returns `false` if the address is outside the valid HD44780 DDRAM range (`0x00-0x7F`).
+
+Example:
+
+```cpp
+uint8_t ac = lcd.getAddress();
+
+lcd.setAddress(ac);
+
+char buf[17];
+lcd.readLine(buf,sizeof(buf));
+```
 
 ---
 # Design Goals
@@ -722,7 +926,6 @@ do {                          // Wait until not busy.
   if (stable < 3) {           //   More confirmation needed:
     writeRaw(0x30);
     writeRaw(0x30);
-
     writeRaw(0x30);           //   Force known 8-bit state: Sends raw 3 x 0x3 when 4-bit interface, or 3 x 0x30 at 8-bit interface.
   }
 } while (stable < 3);         // Retry on 0,1 nibble phase mismatch. Leave on stable 0,0.

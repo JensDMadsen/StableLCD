@@ -27,6 +27,24 @@
 </ul>
 </li>
 <li><a href="#background-and-motivation">Background and Motivation</a></li>
+<li><a href="#reading-display-memory">Reading Display Memory</a>
+<ul>
+<li><a href="#reading-display-text">Reading Display Text</a></li>
+<li><a href="#read">read()</a></li>
+<li><a href="#readline">readLine()</a></li>
+<li><a href="#readuntil">readUntil()</a></li>
+</ul>
+</li>
+<li><a href="#position-and-address-functions">Position and Address Functions</a>
+<ul>
+<li><a href="#getcols">getCols()</a></li>
+<li><a href="#getrows">getRows()</a></li>
+<li><a href="#getpos">getPos()</a></li>
+<li><a href="#getline">getLine()</a></li>
+<li><a href="#getaddress">getAddress()</a></li>
+<li><a href="#setaddress">setAddress()</a></li>
+</ul>
+</li>
 <li><a href="#design-goals">Design Goals</a>
 <ul>
 <li><a href="#robust-communication">Robust Communication</a></li>
@@ -141,6 +159,8 @@
 <ul>
 <li><a href="#introduction">Introduction</a></li>
 <li><a href="#background-and-motivation">Background and Motivation</a></li>
+<li><a href="#reading-display-memory">Reading Display Memory</a></li>
+<li><a href="#position-and-address-functions">Position and Address Functions</a></li>
 <li><a href="#design-goals">Design Goals</a></li>
 <li><a href="#architecture">Architecture</a></li>
 <li><a href="#robust-initialization-algorithm">Robust Initialization Algorithm</a></li>
@@ -320,6 +340,158 @@ lcd<span class="token punctuation">.</span><span class="token function">begin</s
 <p>The synchronization algorithm in this library is, to my knowledge, the first published method that can reliably synchronize with an HD44780 display from <em>any</em> unknown state - without a single fixed delay. No assumptions about power-up timing, no assumptions about mode, no assumptions about nibble alignment.</p>
 <p>The name “StableLCD” reflects the goal: a display driver that doesn’t just work most of the time, but works <em>reliably</em> - even when things go wrong. Runtime verification, automatic recovery, and active synchronization aren’t just features; they’re the foundation.</p>
 <p>I hope this library saves you hours of debugging flaky displays, and perhaps inspires a more robust approach to embedded communication in general.</p>
+<hr>
+<h1 id="reading-display-memory">Reading Display Memory</h1>
+<p>Unlike most traditional HD44780 libraries, StableLCD supports reading text and address information directly back from the LCD controller.</p>
+<p>This allows applications to:</p>
+<ul>
+<li>verify displayed text,</li>
+<li>parse display contents,</li>
+<li>inspect cursor and address state,</li>
+<li>and build synchronized runtime verification or recovery systems.</li>
+</ul>
+<p>The read functions operate on the same logical row/column model used by <code>setCursor()</code> and the normal Arduino-compatible API.</p>
+<p>This means applications can work with logical display positions without needing to handle the internal HD44780 DDRAM layout directly.</p>
+<p>The following sections describe the available position, address, and text read functions.</p>
+<p>The library includes the example <code>DEMO6_ReadFunctions</code>, which demonstrates:</p>
+<ul>
+<li>Position and address functions</li>
+<li>Reading complete lines</li>
+<li>Token parsing using <code>read()</code></li>
+<li><code>readUntil()</code> with custom terminators</li>
+<li>Multiple separator handling</li>
+<li>Save/restore of DDRAM addresses</li>
+</ul>
+<p>The example also demonstrates the logical display model and the relationship between logical cursor positions and raw HD44780 DDRAM addresses.</p>
+<hr>
+<h2 id="reading-display-text">Reading Display Text</h2>
+<p>StableLCD supports reading text directly from the HD44780 DDRAM using logical row/column addressing.</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token comment">// Read one token, able to choose separator character.</span>
+size_t <span class="token function">read</span><span class="token punctuation">(</span><span class="token keyword">char</span> <span class="token operator">*</span>buf<span class="token punctuation">,</span> size_t size<span class="token punctuation">,</span>
+                <span class="token keyword">char</span> separator<span class="token punctuation">,</span>
+                <span class="token keyword">bool</span> trimLeft<span class="token operator">=</span><span class="token boolean">true</span><span class="token punctuation">,</span>
+                <span class="token keyword">bool</span> trimRight<span class="token operator">=</span><span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// Read one token, allows custom separators.</span>
+size_t <span class="token function">read</span><span class="token punctuation">(</span><span class="token keyword">char</span> <span class="token operator">*</span>buf<span class="token punctuation">,</span> size_t size<span class="token punctuation">,</span>
+                <span class="token keyword">const</span> <span class="token keyword">char</span> <span class="token operator">*</span>separators<span class="token operator">=</span><span class="token string">" "</span><span class="token punctuation">,</span>
+                <span class="token keyword">bool</span> trimLeft<span class="token operator">=</span><span class="token boolean">true</span><span class="token punctuation">,</span>
+                <span class="token keyword">bool</span> trimRight<span class="token operator">=</span><span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// Read line, trim trailing spaces as standard.</span>
+size_t <span class="token function">readLine</span><span class="token punctuation">(</span><span class="token keyword">char</span> <span class="token operator">*</span>buf<span class="token punctuation">,</span> size_t size<span class="token punctuation">,</span>
+                <span class="token keyword">bool</span> trimLeft<span class="token operator">=</span><span class="token boolean">false</span><span class="token punctuation">,</span>
+                <span class="token keyword">bool</span> trimRight<span class="token operator">=</span><span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// Read from cursor to *buf until terminator char or EOL.</span>
+size_t <span class="token function">readUntil</span><span class="token punctuation">(</span><span class="token keyword">char</span> <span class="token operator">*</span>buf<span class="token punctuation">,</span> size_t size<span class="token punctuation">,</span>
+                <span class="token keyword">char</span> term<span class="token punctuation">,</span>
+                <span class="token keyword">bool</span> trimLeft<span class="token operator">=</span><span class="token boolean">false</span><span class="token punctuation">,</span>
+                <span class="token keyword">bool</span> trimRight<span class="token operator">=</span><span class="token boolean">false</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// Read from cursor to *buf until any terminator or EOL.</span>
+size_t <span class="token function">readUntil</span><span class="token punctuation">(</span><span class="token keyword">char</span> <span class="token operator">*</span>buf<span class="token punctuation">,</span> size_t size<span class="token punctuation">,</span>
+                <span class="token keyword">const</span> <span class="token keyword">char</span> <span class="token operator">*</span>termstr<span class="token operator">=</span><span class="token string">""</span><span class="token punctuation">,</span>
+                <span class="token keyword">bool</span> trimLeft<span class="token operator">=</span><span class="token boolean">false</span><span class="token punctuation">,</span>
+                <span class="token keyword">bool</span> trimRight<span class="token operator">=</span><span class="token boolean">false</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre>
+<p>All functions:</p>
+<ul>
+<li>Read from the current cursor position.</li>
+<li>Advance the HD44780 address counter during reading.</li>
+<li>Always zero-terminate the destination buffer.</li>
+<li>Stop at end-of-line (logical display line).</li>
+<li>Return the number of stored characters.</li>
+</ul>
+<h2 id="read">read()</h2>
+<p>Reads one token using custom separators.</p>
+<ul>
+<li>Leading spaces are skipped by default.</li>
+<li>Trailing spaces are removed by default.</li>
+<li>Reading stops at the first separator or end-of-line.</li>
+</ul>
+<p>Example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">char</span> buf<span class="token punctuation">[</span><span class="token number">17</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+
+lcd<span class="token punctuation">.</span><span class="token function">setCursor</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+lcd<span class="token punctuation">.</span><span class="token function">read</span><span class="token punctuation">(</span>buf<span class="token punctuation">,</span><span class="token keyword">sizeof</span><span class="token punctuation">(</span>buf<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">// Reads first word.</span>
+Serial<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>buf<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+lcd<span class="token punctuation">.</span><span class="token function">read</span><span class="token punctuation">(</span>buf<span class="token punctuation">,</span><span class="token keyword">sizeof</span><span class="token punctuation">(</span>buf<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">// Reads next word.</span>
+Serial<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>buf<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre>
+<h2 id="readline">readLine()</h2>
+<p>Reads the remaining logical line.</p>
+<ul>
+<li>Trailing spaces are removed by default.</li>
+<li>Leading spaces may optionally be removed.</li>
+</ul>
+<p>Example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">char</span> buf<span class="token punctuation">[</span><span class="token number">17</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+
+lcd<span class="token punctuation">.</span><span class="token function">setCursor</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+lcd<span class="token punctuation">.</span><span class="token function">readLine</span><span class="token punctuation">(</span>buf<span class="token punctuation">,</span><span class="token keyword">sizeof</span><span class="token punctuation">(</span>buf<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+Serial<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>buf<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre>
+<h2 id="readuntil">readUntil()</h2>
+<p>Reads until:</p>
+<ul>
+<li>a terminator character,</li>
+<li>any terminator in a terminator string,</li>
+<li>or end-of-line.</li>
+</ul>
+<p>Example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">char</span> buf<span class="token punctuation">[</span><span class="token number">17</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+
+lcd<span class="token punctuation">.</span><span class="token function">setCursor</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+lcd<span class="token punctuation">.</span><span class="token function">readUntil</span><span class="token punctuation">(</span>buf<span class="token punctuation">,</span><span class="token keyword">sizeof</span><span class="token punctuation">(</span>buf<span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token string">'='</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+Serial<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>buf<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+lcd<span class="token punctuation">.</span><span class="token function">readUntil</span><span class="token punctuation">(</span>buf<span class="token punctuation">,</span><span class="token keyword">sizeof</span><span class="token punctuation">(</span>buf<span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token string">" ,;"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+Serial<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>buf<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre>
+<hr>
+<h1 id="position-and-address-functions">Position and Address Functions</h1>
+<p>These functions provide access to the logical display geometry and the HD44780 DDRAM address counter.</p>
+<p>The functions use the logical display model and do not compensate for display shift or scroll operations (<code>scrollDisplayLeft()</code> / <code>scrollDisplayRight()</code>).</p>
+<p><code>getLine()</code> and <code>getPos()</code> operate on the configured logical row layout (<code>setRowOffsets()</code>), not on shifted/scrolled display positions.</p>
+<p>The logical model matches the addressing used by <code>setCursor()</code>.</p>
+<pre class=" language-cpp"><code class="prism  language-cpp">uint8_t <span class="token function">getCols</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>      <span class="token comment">// Return logical number of columns.</span>
+uint8_t <span class="token function">getRows</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>      <span class="token comment">// Return logical number of rows.</span>
+uint8_t <span class="token function">getPos</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>       <span class="token comment">// Return logical column from current DDRAM address.</span>
+uint8_t <span class="token function">getLine</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>      <span class="token comment">// Return logical row from current DDRAM address.</span>
+
+<span class="token keyword">bool</span> <span class="token function">setAddress</span><span class="token punctuation">(</span>uint8_t address<span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">// Set raw address counter.</span>
+uint8_t <span class="token function">getAddress</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">// Read raw address counter (AC). Returns 0xff at timeout or if not initialized.</span>
+</code></pre>
+<p>These helper functions provide access to the logical display geometry and the HD44780 DDRAM address counter.</p>
+<h2 id="getcols">getCols()</h2>
+<p>Returns the logical number of columns configured by <code>begin()</code> and <code>setRowOffsets()</code>.</p>
+<h2 id="getrows">getRows()</h2>
+<p>Returns the logical number of rows configured by <code>begin()</code>.</p>
+<h2 id="getpos">getPos()</h2>
+<p>Returns the logical column position from the current DDRAM address.</p>
+<p>Returns <code>0xff</code> if the current position cannot be resolved.</p>
+<h2 id="getline">getLine()</h2>
+<p>Returns the logical row from the current DDRAM address.</p>
+<p>Returns <code>0xff</code> if the current row cannot be resolved.</p>
+<h2 id="getaddress">getAddress()</h2>
+<p>Returns the raw HD44780 DDRAM address counter (AC).</p>
+<p>Returns <code>0xff</code> at timeout or if the display is not initialized.</p>
+<h2 id="setaddress">setAddress()</h2>
+<p>Sets the raw HD44780 DDRAM address counter.</p>
+<p>Returns <code>false</code> if the address is outside the valid HD44780 DDRAM range (<code>0x00-0x7F</code>).</p>
+<p>Example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp">uint8_t ac <span class="token operator">=</span> lcd<span class="token punctuation">.</span><span class="token function">getAddress</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+lcd<span class="token punctuation">.</span><span class="token function">setAddress</span><span class="token punctuation">(</span>ac<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">char</span> buf<span class="token punctuation">[</span><span class="token number">17</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+lcd<span class="token punctuation">.</span><span class="token function">readLine</span><span class="token punctuation">(</span>buf<span class="token punctuation">,</span><span class="token keyword">sizeof</span><span class="token punctuation">(</span>buf<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre>
 <hr>
 <h1 id="design-goals">Design Goals</h1>
 <p>StableLCD was designed with focus on:</p>
@@ -782,7 +954,6 @@ lcd<span class="token punctuation">.</span><span class="token function">begin</s
   <span class="token keyword">if</span> <span class="token punctuation">(</span>stable <span class="token operator">&lt;</span> <span class="token number">3</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>           <span class="token comment">//   More confirmation needed:</span>
     <span class="token function">writeRaw</span><span class="token punctuation">(</span><span class="token number">0x30</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
     <span class="token function">writeRaw</span><span class="token punctuation">(</span><span class="token number">0x30</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-
     <span class="token function">writeRaw</span><span class="token punctuation">(</span><span class="token number">0x30</span><span class="token punctuation">)</span><span class="token punctuation">;</span>           <span class="token comment">//   Force known 8-bit state: Sends raw 3 x 0x3 when 4-bit interface, or 3 x 0x30 at 8-bit interface.</span>
   <span class="token punctuation">}</span>
 <span class="token punctuation">}</span> <span class="token keyword">while</span> <span class="token punctuation">(</span>stable <span class="token operator">&lt;</span> <span class="token number">3</span><span class="token punctuation">)</span><span class="token punctuation">;</span>         <span class="token comment">// Retry on 0,1 nibble phase mismatch. Leave on stable 0,0.</span>

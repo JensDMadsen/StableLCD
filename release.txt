@@ -1,8 +1,24 @@
-StableLCD 1.1.0
+StableLCD 1.2.0
 
-- Added optional LCD power control support
-- Added DEMO4_PowerCycle example
-- Added DEMO5_SlowRiseTest example
-- Improved HD44780 synchronization and initialization robustness
-- Added repeated synchronization confirmation during initialization
-- Updated documentation, examples, and demo naming
+- Added LCD DDRAM text reading functions:
+  - read()
+  - readLine()
+  - readUntil()
+
+- Added logical position and address helper functions:
+  - getCols()
+  - getRows()
+  - getPos()
+  - getLine()
+  - getAddress()
+  - setAddress()
+
+- Added DEMO6_ReadFunctions example
+
+- Expanded README documentation for:
+  - reading display memory
+  - text parsing
+  - separator handling
+  - logical cursor/address handling
+
+- Updated keywords.txt with new API functions

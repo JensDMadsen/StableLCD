@@ -26,6 +26,17 @@ verifyEnd	KEYWORD2
 verifyClr	KEYWORD2
 verifyOk	KEYWORD2
 
+read	KEYWORD2
+readLine	KEYWORD2
+readUntil	KEYWORD2
+
+getCols	KEYWORD2
+getRows	KEYWORD2
+getPos	KEYWORD2
+getLine	KEYWORD2
+getAddress	KEYWORD2
+setAddress	KEYWORD2
+
 display	KEYWORD2
 noDisplay	KEYWORD2
 blink	KEYWORD2

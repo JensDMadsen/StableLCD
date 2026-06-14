@@ -56,6 +56,18 @@ bool LiquidCrystalBase::begin(uint8_t cols, uint8_t lines, uint8_t dotsize) {   
   return false;                                                                         //   Return error
 }
 
+uint8_t LiquidCrystalBase::getLine() {                                                  // Return logical row from current DDRAM address.
+  uint8_t ac = getAddress();                                                            // Read current DDRAM address.
+  if (ac == 0xff) return 0xff;                                                          // Return error if address read failed.
+  for (uint8_t row=0; row<numlines; row++) {                                            // Search configured logical rows.
+    if ((ac >= row_offsets[row]) &&                                                     // AC inside logical row:
+        (ac < (row_offsets[row] + getCols()))) {
+      return row;                                                                       // Return matching logical row.
+    }
+  }
+  return 0xff;                                                                          // AC outside configured logical rows.
+}
+
 bool LiquidCrystalBase::setCursor(uint8_t col, uint8_t row) {                           // Set cursor position.
   const size_t max_lines = sizeof(row_offsets) / sizeof(*row_offsets);                  // Get lines from array size.
   if ( row >= max_lines ) row = max_lines - 1;                                          // Handle limits.
@@ -82,3 +94,48 @@ size_t LiquidCrystalBase::write(uint8_t value) {                                
   }
   return 1;                                                                             //   Return 1 if verified.
 }
+
+static inline bool isTerminator(char c, const char *t) {        						// Return true if c matches one of the terminators.
+  while (*t) {                                                  						// Loop through zero-terminated terminator string.
+    if (c == *t++) return true;                                 						// Return true on match.
+  }						
+  return false;                                                 						// No terminator matched.
+}
+
+size_t LiquidCrystalBase::readUntil(char *buf, size_t size, const char *terminators, bool trimLeft, bool trimRight) {
+  if (size-- == 0) return 0;                                    						// No room for terminator.
+  size_t n = 0;                                                 						// Number of chars stored.
+  uint8_t spaces = 0;                                           						// Pending spaces.
+  buf[0] = 0;                                                   						// Always return valid string.
+						
+  uint8_t pos = getPos();                                       						// Read current logical column.
+  uint8_t cols = getCols();                                     						// Read logical line width.
+  if (pos == 255) return 0;                                     						// Return empty string if position cannot be read.
+						
+  for (uint8_t i = pos; i < cols; i++) {                        						// Read until logical end of line.
+    uint8_t value = readData();                                 						// Read next LCD character.
+    if (value == 0xff) break;                                   						// Stop on read error.
+						
+    char c = (char)value;                                       						// Convert value to character.
+    if (trimLeft && c == ' ') continue;                         						// Skip leading spaces before terminator check.
+    trimLeft = false;                                           						// Leading trim is done.
+						
+    if (isTerminator(c, terminators)) break;                    						// Stop on terminator.
+						
+    if (c == ' ') {                                             						// Space:
+      spaces++;                                                 						//   Store as pending.
+      continue;                                                 						//   Do not write yet.
+    }						
+						
+    while (spaces && (n < size)) { spaces--; buf[n++] = ' '; }  						// Flush internal spaces.
+    spaces = 0;                                                 						// Clear pending spaces.
+    if (n < size) buf[n++] = c;                                 						// Store character if room.
+  }						
+						
+  if (!trimRight) {                                             						// If trailing spaces must be kept:
+    while (spaces && (n < size)) { spaces--; buf[n++] = ' '; }  						//   Flush pending trailing spaces.
+  }						
+						
+  buf[n] = 0;                                                   						// Zero terminate string.
+  return n;                                                     						// Return number of stored chars.
+}						

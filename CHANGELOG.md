@@ -2,8 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.1.0] - 2026-06-12
+## [1.2.0] - 2026-06-14
+### Added
+- Added LCD DDRAM text reading functions:
+  - `read()`
+  - `readLine()`
+  - `readUntil()`
+- Added logical position and address helper functions:
+  - `getCols()`
+  - `getRows()`
+  - `getPos()`
+  - `getLine()`
+  - `getAddress()`
+  - `setAddress()`
+- Added `DEMO6_ReadFunctions` example demonstrating:
+  - DDRAM text reading
+  - token parsing
+  - separator handling
+  - logical cursor/address handling
+  - DDRAM address save/restore
 
+### Changed
+- Expanded README documentation for:
+  - reading display memory
+  - logical cursor/address functions
+  - text parsing behavior
+  - separator and terminator handling
+- Updated `keywords.txt` with new API functions
+- Improved example SRAM usage using `F()` flash string storage
+
+## [1.1.0] - 2026-06-12
 ### Added
 - Optional LCD power control support via backend power pin
 - Runtime LCD power support in begin(), end(), enable(), and disable()

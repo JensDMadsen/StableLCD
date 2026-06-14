@@ -11,6 +11,9 @@ const int rs = 6, rw = 7, en = 8;               // Control pins
 const int d4 = 9, d5 = 10, d6 = 11, d7 = 12;    // Data bus pins
 const int pwr = 5;                              // Power is connected to pin 5
 
+// For very slow LCD displays you might need to increase settleDelayMs and TIMEOUT_MS in HD44780PHY.h
+// Note: TIMEOUT_MS (default 200ms) is the maximum time each initClear() attempt will wait for the LCD to respond.
+
 const unsigned long displayOnDelayMs  = 200;    // Time that LCD display is on to allow text to be read
 const unsigned long powerOffDelayMs   = 200;    // Time that LCD display is off between cycles
 const unsigned long settleDelayMs     = 200;    // Optional extra settle delay for extremely slow LCD supply rise times

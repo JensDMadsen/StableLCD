@@ -44,6 +44,7 @@ public:                                             // Constructors, configurati
   StableLCD(uint8_t rs,uint8_t rw,uint8_t ena,uint8_t d0,uint8_t d1,uint8_t d2,uint8_t d3,uint8_t pwr=0)                                                //   Setup 4 bit display, R/W
     :LiquidCrystalBase(true),lcd(rs,rw,ena,d0,d1,d2,d3,pwr) {}
 
+  virtual uint8_t getAddress() override             { return lcd.readAC();            } // Read raw address counter (AC). Returns 0xff at timeout or if not initialized.
   virtual bool command(uint8_t value ) override     { return lcd.command(value);      } // Send command byte to LCD controller. Returns false on timeout.
   virtual bool writeData(uint8_t value) override    { return lcd.writeData(value);    } // Write data byte to DDRAM or CGRAM. Returns false on timeout.
   virtual uint8_t readData() override               { return lcd.readData();          } // Read data byte from DDRAM or CGRAM. Returns 0xff on error.
